@@ -1,0 +1,6 @@
+[submodule "fft.js"]
+	path = fft.js
+	url = https://github.com/jensnockert/fft.js.git
+[submodule "decode-tiff"]
+	path = decode-tiff
+	url = https://github.com/Quramy/decode-tiff.git
