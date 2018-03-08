@@ -5,7 +5,10 @@
 
 <link rel="stylesheet" type="text/css" href="./style.css" />
 
+<script src="simHandler.js" ></script>
 <script src="fileLoader.js" ></script>
+<script src="Vec2dCplx.js" ></script>
+<script src="fft-runner.js" ></script>
 <script src="tiff-decoder.js"></script>
 
 <title>fairSIM-js</title>
@@ -23,7 +26,7 @@
 <div id="status">0%</div>
 </div>
 
-<div id="image">
+<div id="image-raw">
 raw images:<br/>
 <canvas id="rawCanvas" width="512" height="512"></canvas><br />
 <input id="zSlider"  value="0" min="0" max="1" step="1" type="range" oninput="setImage(this.value)" >
@@ -31,7 +34,10 @@ raw images:<br/>
 </input>
 </div>
 
-
+<div id="image-fft">
+<canvas id="fftCanvas" width="512" height="512"></canvas><br />
+<button id="runInputButton" onclick="importImages()">import</button>
+</div>
 
 <div id="fairsimlogger">
 Logger:

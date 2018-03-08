@@ -1,11 +1,3 @@
-function logger(text) {
-
-    console.log("fairSIM-js: "+text);
-    document.getElementById("fairsimlogger").innerHTML = "<pre>"+text+"<pre>";
-}
-
-var tiffPages = null;
-
 var reader = new FileReader();
 
 function startRead() {
@@ -18,8 +10,6 @@ function startRead() {
 }
 
 function getAsBuffer(readFile) {
-
-
   // Read file into memory as UTF-16
   reader.readAsArrayBuffer(readFile);
 
@@ -46,7 +36,8 @@ function loaded(evt) {
     document.getElementById("status").innerHTML="100% done, decoding TIFF";	
     
     // decode tiff
-    tiffPages = decode( reader.result, false );
+    //tiffPages = decode( reader.result, false, true );
+    tiffPages = decode( reader.result, false, false );
 
     logger("loaded tiff: "+tiffPages.length+" slices @"
 	+tiffPages[0].width+"x"+tiffPages[0].height);
@@ -55,40 +46,14 @@ function loaded(evt) {
     document.getElementById("zSlider").max = (tiffPages.length/15)-1;
     document.getElementById("sSlider").max = 14;
     document.getElementById("status").innerHTML="100% done, TIFF decoded";	
-
     
 }
 
 function errorHandler(evt) {
   if(evt.target.error.name == "NotReadableError") {
-    // The file could not be read
-  }
+	logger("File load error");  
+    }
 }
 
 
-function setImage(pos) {
-
-    if (tiffPages==null) {
-	return;
-    }
-
-    var phaAng =  document.getElementById("sSlider").value; 
-
-    var imgCnv = document.getElementById("rawCanvas");
-    var ctx = imgCnv.getContext("2d");
-    var imgData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    
-    var data = imgData.data;
-
-    var pha = phaAng%5;
-    var ang = Math.floor(phaAng/5);
-
-    logger("ang: "+ang+" pha: "+pha+" z: "+pos);
-
-    for ( var i = 0 ; i<data.length; i++) {
-	data[i] = tiffPages[ pos*5 + pha + ang*(tiffPages.length/3)  ].data[i];
-    }
-    ctx.putImageData( imgData,0,0);
-
-}
 
