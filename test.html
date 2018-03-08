@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"> 
+
+<link rel="stylesheet" type="text/css" href="./style.css" />
+
+<script src="fileLoader.js" ></script>
+<script src="tiff-decoder.js"></script>
+
+<title>fairSIM-js</title>
+</head>
+
+<body>
+
+
+<h1>SIM reconstruction</h1>
+
+<div id="fileLoader">
+1. Select an input file (tiff)<br />
+<input type="file" id="file" /><br />
+<button onclick="startRead()">load file</button>
+<div id="status">0%</div>
+</div>
+
+<div id="image">
+raw images:<br/>
+<canvas id="rawCanvas" width="512" height="512"></canvas><br />
+<input id="zSlider"  value="0" min="0" max="1" step="1" type="range" oninput="setImage(this.value)" >
+<input id="sSlider"  value="0" min="0" max="1" step="1" type="range" oninput="setImage(zSlider.value)" >
+</input>
+</div>
+
+
+
+<div id="fairsimlogger">
+Logger:
+
+</div>
+
+
+</body>
+
+
+
+
+</html>
