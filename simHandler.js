@@ -8,6 +8,9 @@ function logger(text) {
 const maxAng = 3;
 const maxPha = 5;
 
+var objNA=1.4;
+var emLambda=525;
+
 var tiffPages   = null;
 var inputFFTimg = null;
 var zImported   = -1;
@@ -68,7 +71,10 @@ function importImages() {
 	var pos   = z*maxPha + pha + ang*(tiffPages.length/maxAng);
 	var fftIn = new Vec2dCplx( tiffPages[ pos  ].width );
 	fftIn.setFromRGB( tiffPages[ pos ].data );
+	fftIn.applyWindow(50);
 	fftIn.fft2d( true );
+	fftIn.fourierShift( 50.25,50.2);	
+	fftIn.fft2d( false );
 	inputFFTimg.push( fftIn); 
     }}
 
@@ -94,10 +100,26 @@ function updateFFTimage( pos ) {
 	data[i*4+0] = pwSpec[i]*255 ;
 	data[i*4+1] = pwSpec[i]*255 ;
 	data[i*4+2] = pwSpec[i]*255 ;
+	data[i*4+0] = inputFFTimg[pos].data[i*2] ;
+	data[i*4+1] = inputFFTimg[pos].data[i*2] ;
+	data[i*4+2] = inputFFTimg[pos].data[i*2] ;
 	data[i*4+3] = 0xFF;
     } 
     ctx.putImageData( fftData,0,0);
 
 }
 
+
+
+
+
+
+
+function createOtf( vec, kx=0, ky=0 ) {
+
+    
+
+
+
+}
 
