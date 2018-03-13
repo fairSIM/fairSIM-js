@@ -11,9 +11,10 @@ h1 {
 
 #fairsimlogger {
     position: fixed;
-    height: 50px;
-    width: 1034px;
-    bottom: 2px;
+    height: 40px;
+    width: 300px;
+    top: 20px;
+    left: 514px;
     border: 2px solid powderblue;
 }
 
@@ -68,4 +69,27 @@ h1 {
     top:0px;
     left:0px;
 }
+
+
+#image-corr {
+    border: 2px solid powderblue;
+    width:514px;
+    height:514px;
+    left:0px;
+    position: relative;
+}
+
+#runCorrButton {
+    position: absolute;
+    top:10px;
+    left:10px;
+}
+
+#corrSlider {
+    position: absolute;
+    top: 470px;
+    left: 0px;
+    width: 290px;
+}
+
 

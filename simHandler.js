@@ -13,11 +13,14 @@ var emLambda=525;
 
 var tiffPages   = null;
 var inputFFTimg = null;
+var bandImg	= null;
+var corrImg	= null;
 var zImported   = -1;
 
 function setImage(pos) {
 
     if (tiffPages==null) {
+	logger("open a TIFF first");
 	return;
     }
 
@@ -54,9 +57,10 @@ function setImage(pos) {
     }
 }
 
-
+// imports the images
 function importImages() {
     if (tiffPages==null) {
+	logger("Open a tiff first");
 	return;
     }
     
@@ -64,49 +68,84 @@ function importImages() {
     zImported = z;   
  
     inputFFTimg = [];
+    bandImg     = [];
 
     for (var ang = 0 ; ang < maxAng ; ang++ ) {
-    for (var pha = 0 ; pha < maxPha ; pha++ ) {
+	
+	// copy input data
+	for (var pha = 0 ; pha < maxPha ; pha++ ) {
+	    var pos   = z*maxPha + pha + ang*(tiffPages.length/maxAng);
+	    var fftIn = new Vec2dCplx( tiffPages[ pos  ].width );
+	    fftIn.setFromRGB( tiffPages[ pos ].data );
+	    fftIn.applyWindow(20);
+	    inputFFTimg.push( fftIn );
+	}
 
-	var pos   = z*maxPha + pha + ang*(tiffPages.length/maxAng);
-	var fftIn = new Vec2dCplx( tiffPages[ pos  ].width );
-	fftIn.setFromRGB( tiffPages[ pos ].data );
-	fftIn.applyWindow(50);
-	fftIn.fft2d( true );
-	fftIn.fourierShift( 50.25,50.2);	
-	fftIn.fft2d( false );
-	inputFFTimg.push( fftIn); 
-    }}
+	// band-separate (in real space)
+	tmp = bandSeparate( inputFFTimg, ang*maxPha );
+	for (var b=0; b<(maxPha+1)/2; b++) {
+	    bandImg.push(tmp[b]);
+	}
+	for (var pha = 0 ; pha < maxPha ; pha++ ) {
+	    inputFFTimg[ pha+ang*maxPha].fft2d();
+	} 
+    }
+
 
     updateFFTimage(document.getElementById("sSlider").value);
-    logger("Input complete, z: "+z);
+    logger("slice "+z+" imported");
 }
 
-function updateFFTimage( pos ) {
+// called by 'importImages()', calculates a (very basic)
+// band separation (only equi-distant phases, only #bands=(#phases+1)/2)
+function bandSeparate(inVec, offset) {
 
-    if ( inputFFTimg == null || inputFFTimg.length == 0 ) {
+    const bands = (maxPha+1)/2;
+    var ret = [];
+    
+    for ( var b = 0 ; b<bands; b++) {
+
+	bVec = new Vec2dCplx( inVec[0].size );
+
+	for ( var i = 0 ; i < maxPha ; i++ ) {
+	
+	    var pha = 2*b*Math.PI * i / maxPha;	
+	   
+	    addVec = inVec[i+offset].copy();  
+	    addVec.mult( Math.cos(pha), Math.sin(pha));
+	    bVec.add( addVec );
+	}
+    
+	ret.push( bVec );
+    }
+
+    return ret;
+
+}
+
+// calculates the cross-correlation between bands
+function computeCorrImages() {
+    
+    const bands = (maxPha+1)/2;
+
+    if (bandImg == null || bandImg.length != bands*maxAng ) {
+	logger("import some images first..." );
 	return;
     }
 
-    var imgCnv = document.getElementById("fftCanvas");
-    var ctx = imgCnv.getContext("2d");
-    var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    var pwSpec  = inputFFTimg[pos].pwSpec();
+    corrImg = [];
 
-    logger( pwSpec.length);
+    for (var ang = 0 ; ang < maxAng ; ang++ ) {
+	for ( var b=1; b<bands; b++) {
 
-    var data = fftData.data;
-    for ( var i = 0 ; i<data.length/4; i++) {
-	data[i*4+0] = pwSpec[i]*255 ;
-	data[i*4+1] = pwSpec[i]*255 ;
-	data[i*4+2] = pwSpec[i]*255 ;
-	data[i*4+0] = inputFFTimg[pos].data[i*2] ;
-	data[i*4+1] = inputFFTimg[pos].data[i*2] ;
-	data[i*4+2] = inputFFTimg[pos].data[i*2] ;
-	data[i*4+3] = 0xFF;
-    } 
-    ctx.putImageData( fftData,0,0);
+	    var c = bandImg[ (b +ang*bands ) ].copy();
+	    c.times( bandImg[  ang*bands ]);
+	    c.fft2d();
+	    corrImg.push(c);
+	}
+    }    
 
+    updateCorrelationImage(document.getElementById("corrSlider").value);
 }
 
 
@@ -122,4 +161,57 @@ function createOtf( vec, kx=0, ky=0 ) {
 
 
 }
+
+function updateFFTimage( pos ) {
+
+    if ( inputFFTimg == null || inputFFTimg.length == 0 ) {
+	return;
+    }
+
+    var imgCnv = document.getElementById("fftCanvas");
+    var ctx = imgCnv.getContext("2d");
+    var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
+    var pwSpec  = inputFFTimg[pos].pwSpec();
+
+    //logger( pwSpec.length);
+
+    var data = fftData.data;
+    for ( var i = 0 ; i<data.length/4; i++) {
+	data[i*4+0] = pwSpec[i]*255 ;
+	data[i*4+1] = pwSpec[i]*255 ;
+	data[i*4+2] = pwSpec[i]*255 ;
+	/*data[i*4+0] = bandImg[pos%9].data[i*2] ;
+	data[i*4+1] = bandImg[pos%9].data[i*2] ;
+	data[i*4+2] = bandImg[pos%9].data[i*2] ;*/
+	data[i*4+3] = 0xFF;
+    } 
+    ctx.putImageData( fftData,0,0);
+
+}
+
+
+function updateCorrelationImage( pos ) {
+
+    if ( corrImg == null || corrImg.length == 0 ) {
+	return;
+    }
+
+    var imgCnv = document.getElementById("corrCanvas");
+    var ctx = imgCnv.getContext("2d");
+    var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
+    var pwSpec  = corrImg[pos].pwSpec();
+
+    //logger( pwSpec.length);
+
+    var data = fftData.data;
+    for ( var i = 0 ; i<data.length/4; i++) {
+	data[i*4+0] = pwSpec[i]*255 ;
+	data[i*4+1] = pwSpec[i]*255 ;
+	data[i*4+2] = pwSpec[i]*255 ;
+	data[i*4+3] = 0xFF;
+    } 
+    ctx.putImageData( fftData,0,0);
+
+}
+
 

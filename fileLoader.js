@@ -25,7 +25,8 @@ function updateProgress(evt) {
     var loaded = (evt.loaded / evt.total);
     if (loaded <= 1) {
       // Increase the prog bar length
-    	document.getElementById("status").innerHTML=Number.parseFloat(loaded*100).toFixed(2);
+    	//document.getElementById("status").innerHTML=Number.parseFloat(loaded*100).toFixed(2);
+	logger( "loading: "+Number.parseFloat(loaded*100).toFixed(2));
     }
   }
 }
@@ -33,20 +34,21 @@ function updateProgress(evt) {
 // file has loaded
 function loaded(evt) {
 
-    document.getElementById("status").innerHTML="100% done, decoding TIFF";	
-    
+    //document.getElementById("status").innerHTML="100% done, decoding TIFF";	
+    logger("done, decoding TIFF");    
+
     // decode tiff
     //tiffPages = decode( reader.result, false, true );
     tiffPages = decode( reader.result, false, false );
 
-    logger("loaded tiff: "+tiffPages.length+" slices @"
-	+tiffPages[0].width+"x"+tiffPages[0].height);
 
     setImage(0);   
     document.getElementById("zSlider").max = (tiffPages.length/15)-1;
     document.getElementById("sSlider").max = 14;
-    document.getElementById("status").innerHTML="100% done, TIFF decoded";	
+    //document.getElementById("status").innerHTML="100% done, TIFF decoded";	
     
+    logger("loaded tiff: "+tiffPages.length+" slices @"
+	+tiffPages[0].width+"x"+tiffPages[0].height);
 }
 
 function errorHandler(evt) {

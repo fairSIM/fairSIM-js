@@ -23,7 +23,7 @@
 1. Select an input file (tiff)<br />
 <input type="file" id="file" /><br />
 <button onclick="startRead()">load file</button>
-<div id="status">0%</div>
+<!-- <div id="status">0%</div> -->
 </div>
 
 <div id="image-raw">
@@ -39,9 +39,17 @@ raw images:<br/>
 <button id="runInputButton" onclick="importImages()">import</button>
 </div>
 
-<div id="fairsimlogger">
-Logger:
+<div id="image-corr">
+<canvas id="corrCanvas" width="512" height="512"></canvas><br />
+<button id="runCorrButton" onclick="computeCorrImages()">compute correlation</button>
+<input id="corrSlider"  value="0" min="0" max="5" step="1" type="range" oninput="updateCorrelationImage(this.value)" >
+</div>
 
+
+
+
+<div id="fairsimlogger">
+<pre>status: ready</pre>
 </div>
 
 

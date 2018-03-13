@@ -9,7 +9,15 @@ class Vec2dCplx {
         this.fftForward   = new FFT.complex(size, false);  
 	this.fftBackwards = new FFT.complex(size, true);  
     }
-    
+   
+    copy() {
+	var ret = new Vec2dCplx( this.size );
+	for ( var i=0; i<this.length*2; i++)
+	    ret.data[i] = this.data[i];
+	return ret;
+    }
+
+ 
     fft2d( dir )  {
 	
 	if (dir) {
@@ -71,9 +79,10 @@ class Vec2dCplx {
     }
 
 
+    // point-wise multiplication with other vector
     times( vec ) {
-	if ( vec.legth != this.length ) {
-	    throw "vector size mismatch";
+	if ( vec.length != this.length ) {
+	    throw "times: vector size mismatch";
 	}
 	for ( var i=0 ; i<this.length ; i++ ) {
 	    var r1 = this.data[ i*2 + 0 ];	    
@@ -89,10 +98,22 @@ class Vec2dCplx {
 	}
     }
 
+    // multiply vector with complex scalar
+    mult( re, im ) {
+	for ( var i=0 ; i<this.length ; i++ ) {
+	    var r1 = this.data[ i*2 + 0 ];	    
+	    var i1 = this.data[ i*2 + 1 ];	    
+	    var rr = r1 * re - i1 * im ;
+	    var ir = r1 * im + re * i1 ; 
+	    this.data[ i * 2 + 0 ]  = rr;
+	    this.data[ i * 2 + 1 ]  = ir;
+	}
+    }
+
 
     add( vec ) {
-	if ( vec.legth != this.length ) {
-	    throw "vector size mismatch";
+	if ( vec.length != this.length ) {
+	    throw "add: vector size mismatch";
 	}
 	for ( var i=0 ; i<this.length*2 ; i++ ) {
 	    this.data[i]  += vec.data[i];
@@ -151,7 +172,7 @@ class Vec2dCplx {
 	if ( isNaN( min ) || max-min > 30) 
 	    min = max-30;
 	
-	logger( min+" "+max);
+	//logger( min+" "+max);
 
 	var ret = new Float32Array( this.size * this.size );
 	var data = this.data;
