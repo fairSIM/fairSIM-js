@@ -110,7 +110,7 @@ class Vec2dCplx {
 	}
     }
 
-
+    // add a Vector to this one
     add( vec ) {
 	if ( vec.length != this.length ) {
 	    throw "add: vector size mismatch";
@@ -119,6 +119,37 @@ class Vec2dCplx {
 	    this.data[i]  += vec.data[i];
 	}
     }
+
+
+    // find the maximum, excluding regions close to origin
+    findMax( minDist = 100 ) {
+
+	var max = 0;
+	var posX = 0;
+	var posY = 0; 
+
+	for ( var y=0; y<this.size; y++ ) 
+	for ( var x=0; x<this.size; x++ ) {
+	    var xr = x;
+	    var yr = y;
+	    if (xr>this.size/2) xr -= this.size;	    
+	    if (yr>this.size/2) yr -= this.size;
+	    if ( Math.sqrt( xr*xr + yr*yr ) > minDist ) {
+		var data = this.data;
+		var i = x + this.size*y;
+		var abs = Math.sqrt( data[2*i]*data[2*i] + data[2*i+1]*data[2*i+1]);
+		if ( abs > max ) {
+		    max = abs;
+		    posX = x;
+		    posY = y;
+		}
+	    }
+	} 
+    
+	return [ posX, posY, max ];
+
+    }
+
 
 
 
@@ -160,6 +191,36 @@ class Vec2dCplx {
 	return [min, max];
 
     }
+
+    // cross-correlate with given vector and offset
+    crossCorrelate( vec, kx, ky ) {
+
+	var sumRe=0, sumIm=0;
+
+	for ( var y = 0; y< this.size; y++)
+	for ( var x = 0; x< this.size; x++) {
+
+		var pha = 2 * Math.PI * (kx*x + ky*y) / this.size;    
+		var co  = Math.cos( pha );
+		var si  = Math.sin( pha );
+	
+		var i = this.size * y + x;	
+		var r1 = vec.data[ i*2 + 0 ];	    
+		var i1 = vec.data[ i*2 + 1 ];	    
+		var rr = r1 * co - i1 * si ;
+		var ir = r1 * si + co * i1 ; 
+
+		var r2 = this.data[ i*2 + 0 ];
+		var i2 = this.data[ i*2 + 1 ];
+
+		sumRe += rr * r2 - ir * i2;
+		sumIm += rr * i2 + r2 * ir;
+	}
+	
+	return [ sumRe, sumIm, Math.sqrt( sumRe*sumRe + sumIm*sumIm ) ];
+
+    }
+
 
     // compute a (scaled) power spectrum
     pwSpec( swapQuadrand = true) {

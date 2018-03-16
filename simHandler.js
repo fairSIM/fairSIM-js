@@ -1,7 +1,9 @@
 function logger(text) {
 
     console.log("fairSIM-js: "+text);
+    document.getElementById("fairsimlogger").style.visibility = 'hidden';
     document.getElementById("fairsimlogger").innerHTML = "<pre>"+text+"<pre>";
+    document.getElementById("fairsimlogger").style.visibility = 'visible';
 }
 
 
@@ -10,11 +12,16 @@ const maxPha = 5;
 
 var objNA=1.4;
 var emLambda=525;
+var imageSize = 512;
 
 var tiffPages   = null;
 var inputFFTimg = null;
 var bandImg	= null;
+
 var corrImg	= null;
+var corrSubPxl  = null;
+var maxCorr	= null;
+
 var zImported   = -1;
 
 function setImage(pos) {
@@ -124,9 +131,9 @@ function bandSeparate(inVec, offset) {
 }
 
 // calculates the cross-correlation between bands
-function computeCorrImages() {
+function computeCorrImages( minDist = 100 ) {
     
-    const bands = (maxPha+1)/2;
+    var bands = (maxPha+1)/2;
 
     if (bandImg == null || bandImg.length != bands*maxAng ) {
 	logger("import some images first..." );
@@ -134,6 +141,8 @@ function computeCorrImages() {
     }
 
     corrImg = [];
+    corrSubPxl = [];
+    maxCorr = [];
 
     for (var ang = 0 ; ang < maxAng ; ang++ ) {
 	for ( var b=1; b<bands; b++) {
@@ -142,8 +151,52 @@ function computeCorrImages() {
 	    c.times( bandImg[  ang*bands ]);
 	    c.fft2d();
 	    corrImg.push(c);
+    
+	    // find the brightest pixel
+	    var max = c.findMax();
+
+	    // do a subpixel-precision fit
+	    if ( b==2) {
+		for ( var iter = 0; iter<2; iter++) {
+		    
+		    var maxX=0, maxY=0;
+		    var spTmp = [], maxValue=0, minValue = Number.MAX_VALUE;
+		    logger( "Fitting angle "+ang+", iteration "+iter);
+	
+		    setTimeout(  function(bImg) {	
+			for ( var x=0; x<10; x++ )
+			for ( var y=0; y<10; y++ ) {
+			    var kx = max[0] + ((x-4.5)/4.5)*((iter==0)?(2):(0.5));
+			    var ky = max[1] + ((y-4.5)/4.5)*((iter==0)?(2):(0.5));
+			    var corr = bImg[ (ang*bands ) ].crossCorrelate( bImg[ (b +ang*bands ) ], kx,ky)[2];
+			    if ( corr > maxValue ) {
+				maxValue = corr;
+				maxX = kx;
+				maxY = ky;
+			    }
+			    if ( corr < minValue ) {
+				minValue = corr;
+			    }
+			    spTmp.push( corr );
+			}
+
+			for ( var i=0; i<100; i++) {
+			    spTmp[i] = (spTmp[i]-minValue)/(maxValue-minValue);
+			}   
+		    }(bandImg), 200);
+
+		    corrSubPxl.push( spTmp ); 
+		    max[0] = maxX;
+		    max[1] = maxY;
+		}
+	    }
+	    
+	    maxCorr.push( max );
+
 	}
     }    
+    
+    //logger(maxCorr);
 
     updateCorrelationImage(document.getElementById("corrSlider").value);
 }
@@ -210,7 +263,41 @@ function updateCorrelationImage( pos ) {
 	data[i*4+2] = pwSpec[i]*255 ;
 	data[i*4+3] = 0xFF;
     } 
+
+
+    if ( pos%2 ==1 ) {
+	
+	for ( var iter=0; iter<2; iter++) {
+	    var bpos = Math.floor(pos/2)*2 +iter;
+	    //logger( "pos -> "+pos+" bpos "+bpos);
+	    for ( var x=0; x<10; x++)
+	    for ( var y=0; y<10; y++) {
+
+		var val = corrSubPxl[ bpos ][x+y*10];
+		//logger( x+" "+y+" "+val);
+		for ( var xz=0; xz<4; xz++)
+		for ( var yz=0; yz<4; yz++) {
+		    var i = (x*4+xz) + (y*4+yz)*imageSize + imageSize-(40*(iter+1));
+		    data[i*4+1] = val*255;
+		    data[i*4+2] = val*255;
+		    data[i*4+0] = 0;
+		}
+	    }
+	}
+
+    }
+
     ctx.putImageData( fftData,0,0);
+
+
+    ctx.beginPath();
+    var x =  maxCorr[pos][0];
+    var y =  maxCorr[pos][1];
+    var xo = (x<imageSize/2)?(x+imageSize/2):(x-imageSize/2);
+    var yo = (y<imageSize/2)?(y+imageSize/2):(y-imageSize/2);
+    ctx.stokeStyle = '#ff4400';
+    ctx.arc( xo, yo, 4, 0, Math.PI*2);
+    ctx.stroke();
 
 }
 
