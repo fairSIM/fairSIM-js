@@ -7,8 +7,8 @@ function logger(text) {
 }
 
 
-const maxAng = 3;
-const maxPha = 5;
+var maxAng = 3;
+var maxPha = 5;
 
 var objNA=1.4;
 var emLambda=525;
@@ -23,6 +23,8 @@ var corrSubPxl  = null;
 var maxCorr	= null;
 
 var zImported   = -1;
+var fullResult  = null;
+
 
 function setImage(pos) {
 
@@ -149,7 +151,7 @@ function computeCorrImages( minDist = 100 ) {
 
 	    var c = bandImg[ (b +ang*bands ) ].copy();
 	    c.times( bandImg[  ang*bands ]);
-	    c.fft2d();
+	    c.fft2d(false);
 	    corrImg.push(c);
     
 	    // find the brightest pixel
@@ -202,7 +204,34 @@ function computeCorrImages( minDist = 100 ) {
 }
 
 
+function computeReconstruction() {
 
+    
+    if ( maxCorr == null || maxCorr.length == 0 ) {
+	logger("please run the correlation estimation first");
+	return;
+    } 
+
+    const bands = (maxPha+1)/2;
+    fullResult = new Vec2dCplx( 2*imageSize );
+    
+    for ( var ang = 0; ang<maxAng; ang++) {
+
+	bandImg[ang*bands].fft2d(true);
+	fullResult.paste( bandImg[ang*bands] ,0,0);
+	for ( var b=0; b<bands; b++) {
+	    bandImg[ang*bands+b].fft2d(true);
+	    fullResult.paste( bandImg[ang*bands+b] ,Math.floor( maxCorr[0]),Math.floor(maxCorr[0]));
+	}
+
+    }
+
+    fullResult.fft2d(false);
+
+    updateResultImage();
+
+
+}
 
 
 
@@ -301,4 +330,43 @@ function updateCorrelationImage( pos ) {
 
 }
 
+function updateResultImage() {
 
+    if ( fullResult == null ) {
+	return;
+    }
+
+    var minMax = fullResult.getMinMax();
+    var scal = 255./(minMax[1]-minMax[0]);
+    var min = minMax[0];
+
+    var imgCnv = document.getElementById("resultCanvas");
+    var ctx = imgCnv.getContext("2d");
+    var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
+    //var resData  = fullResult.pwSpec();
+    var resData  = fullResult.data;
+
+    //logger( pwSpec.length);
+
+
+    var data = fftData.data;
+    for ( var y = 0 ; y<fullResult.size; y++) {
+        for ( var x = 0 ; x<fullResult.size; x++) {
+	    var io  = x + y * imgCnv.width;
+	    var ii  = x + y * fullResult.size;
+
+	    data[io*4+0] = (resData[2*ii]-min)*scal ;
+	    data[io*4+1] = (resData[2*ii]-min)*scal ;
+	    data[io*4+2] = (resData[2*ii]-min)*scal ;
+	    /*
+	    data[io*4+0] = resData[ii]*255;
+	    data[io*4+1] = resData[ii]*255;
+	    data[io*4+2] = resData[ii]*255;
+	    */
+	    data[io*4+3] = 0xFF;
+	}
+    } 
+
+    ctx.putImageData( fftData,0,0);
+
+}

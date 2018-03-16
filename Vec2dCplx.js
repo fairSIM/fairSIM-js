@@ -18,7 +18,7 @@ class Vec2dCplx {
     }
 
  
-    fft2d( dir )  {
+    fft2d( dir = true )  {
 	
 	if (dir) {
 	    // horz.
@@ -287,6 +287,32 @@ class Vec2dCplx {
 
     }
 
+    // add the content of a vector half in size, at position x,y
+    paste( vec, kx, ky ) {
+	if ( vec.size > this.size ) {
+	    throw "vector size mismatch";
+	}
+
+	const hsi = vec.size/2;
+
+	for (var y=0; y<vec.size; y++)
+	for (var x=0; x<vec.size; x++) {
+	   
+	    var xo = (x<hsi)?(x):(x+this.size-vec.size);	
+	    var yo = (y<hsi)?(y):(y+this.size-vec.size);	
+
+	    xo = (xo+kx)%this.size;
+	    yo = (yo+ky)%this.size;
+
+
+	    var io = xo + yo * this.size;
+	    var ii = x + y*vec.size;
+
+	    this.data[ io*2 + 0 ]  += vec.data[ ii*2 + 0 ];
+	    this.data[ io*2 + 1 ]  += vec.data[ ii*2 + 1 ];
+
+	}
+    }
 
 }
 
