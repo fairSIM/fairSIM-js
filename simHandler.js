@@ -25,6 +25,7 @@ var maxCorr	= null;
 
 var zImported   = -1;
 var fullResult  = null;
+var fullResultFFT  = null;
 
 var showOtfInInput = false;
 
@@ -100,8 +101,7 @@ function importImages() {
 	
 	// band-separate 
 	tmp = bandSeparate( inputFFTimg, ang*maxPha );
-	//for (var b=0; b<(maxPha+1)/2; b++) {
-	for (var b=0; b<maxPha+1; b++) {
+	for (var b=0; b<(maxPha+1)/2; b++) {
 	    bandImg.push(tmp[b]);
 	}
 
@@ -121,8 +121,7 @@ function bandSeparate(inVec, offset) {
     
     for ( var b = 0 ; b<bands; b++) {
 
-	bVecP = new Vec2dCplx( inVec[0].size );
-	bVecN = new Vec2dCplx( inVec[0].size );
+	bVec = new Vec2dCplx( inVec[0].size );
 
 	for ( var i = 0 ; i < maxPha ; i++ ) {
 	
@@ -130,14 +129,10 @@ function bandSeparate(inVec, offset) {
 	   
 	    var addVec = inVec[i+offset].copy();  
 	    addVec.mult( Math.cos(pha), Math.sin(pha));
-	    bVecP.add( addVec );
-	    var addVec = inVec[i+offset].copy();  
-	    addVec.mult( Math.cos(-pha), Math.sin(-pha));
-	    bVecN.add( addVec );
+	    bVec.add( addVec );
 	}
     
-	ret.push( bVecP );
-	ret.push( bVecN );
+	ret.push( bVec );
     }
 
     return ret;
@@ -199,10 +194,10 @@ function computeCorrImages( minDist = 100 ) {
 
 		    
 	
-		    for ( var x=0; x<10; x++ )
-		    for ( var y=0; y<10; y++ ) {
-			var kx = max[0] + ((x-4.5)/4.5)*((iter==0)?(2):(0.5));
-			var ky = max[1] + ((y-4.5)/4.5)*((iter==0)?(2):(0.5));
+		    for ( var x=0; x<8; x++ )
+		    for ( var y=0; y<8; y++ ) {
+			var kx = max[0] + ((x-3.5)/3.5)*((iter==0)?(2):(0.5));
+			var ky = max[1] + ((y-3.5)/3.5)*((iter==0)?(2):(0.5));
 			var corr = bZero.crossCorrelate( bHigh, kx,ky);
 			if ( corr[2] > maxValue ) {
 			    maxValue = corr[2];
@@ -215,7 +210,7 @@ function computeCorrImages( minDist = 100 ) {
 			spTmp.push( corr );
 		    }
 
-		    for ( var i=0; i<100; i++) {
+		    for ( var i=0; i<64; i++) {
 			spTmp[i][2] = (spTmp[i][2]-minValue)/(maxValue-minValue);
 		    }   
 
@@ -269,27 +264,41 @@ function computeReconstruction() {
     const otf = new Vec2dCplx( imageSize );
     createOtf( otf, 0,0,.1);
 
+    var accOTF = new Vec2dCplx( imageSize *2 );
+    var tmpOTF = new Vec2dCplx( imageSize *2 );
 
     // for all angles
-//    for ( var ang = 0; ang<maxAng; ang++) {
-    for ( var ang = 0; ang<1; ang++) {
+    for ( var ang = 0; ang<maxAng; ang++) {
+    //for ( var ang = 2; ang<3; ang++) {
+
+	
+	createOtf( tmpOTF, 0,0, 0.2 );
+	var tmpZ   = new Vec2dCplx( imageSize *2 );
+	tmpZ.paste( bandImg[ang*bands] );
+	tmpZ.mult(2.,0.);
+	tmpZ.times( tmpOTF );
+	accOTF.add( tmpOTF );
+
+	fullResult.paste( tmpZ, 0, 0 );
 	
 	// for all bands
-	//for ( var b=1; b<bands; b++) {
-	for ( var b=2; b<bands; b++) {
+	for ( var b=1; b<bands; b++) {
+	//for ( var b=2; b<bands; b++) {
 	    
 	    // multiply input w. otf
-	    var bIdx = (ang*bands+b)*2;
+	    var bIdx = ang*bands+b;
 	    var cIdx = ang*(bands-1)+b-1;
 
-	    //bandImg[bIdx].times(otf);
 	    //bandImg[ bIdx ].multPhase( maxCorr[cIdx][3] );
 
-	    var tmpP = new Vec2dCplx( imageSize *2 );
-	    var tmpN = new Vec2dCplx( imageSize *2 );
+	    var tmpP   = new Vec2dCplx( imageSize *2 );
+	    var tmpN   = new Vec2dCplx( imageSize *2 );
 	    tmpP.paste( bandImg[bIdx], 0,0);
-	    tmpN.paste( bandImg[bIdx+1], 0,0);
+	    tmpN.paste( bandImg[bIdx], 0,0, true);
+	    tmpN.conj();	    
 
+	    tmpP.multPhase(  maxCorr[cIdx][3] );
+	    tmpN.multPhase(  maxCorr[cIdx][3] );
 
 	    // go to real space
 	    //bandImg[bIdx].fft2d(true);
@@ -303,24 +312,38 @@ function computeReconstruction() {
 	    tmpP.fourierShift( kx,ky );
 	    tmpN.fourierShift(-kx,-ky );
 	    
-	    tmpP.multPhase(  maxCorr[cIdx][3] );
-	    tmpN.multPhase( -maxCorr[cIdx][3] );
-	    
 	    // move back to freq. space
 	    tmpP.fft2d(false);
 	    tmpN.fft2d(false);
 
-	    
-	    // TODO: apply global phase
+	    // multiply w. OTF
+	    createOtf( tmpOTF, kx,ky, 0.2 );
+	    accOTF.add( tmpOTF );
+	    tmpP.times( tmpOTF );
+	    createOtf( tmpOTF, -kx,-ky, 0.2 );
+	    tmpN.times( tmpOTF );
+	    accOTF.add( tmpOTF );
 
 	    // paste into full result
-//	    fullResult.paste( tmpP ,0,0);
+	    fullResult.paste( tmpP ,0,0);
 	    fullResult.paste( tmpN ,0,0);
 	    logger("pasted angle "+ang+" band "+b+" ("+bIdx+","+cIdx+") at "+kx+" "+ky+" phase "+maxCorr[cIdx][3]);
 	}
 
     }
 
+    // Wiener filtering
+    for ( var i=0; i<fullResult.length; i++) {
+	var d = Math.pow( accOTF.data[2*i], 2) + 1;
+	fullResult.data[2*i+0] /= d;
+	fullResult.data[2*i+1] /= d;
+    }
+
+    // APO
+    createOtf( tmpOTF, 0,0,-1,1.9);
+    fullResult.times( tmpOTF );
+
+    fullResultFFT = fullResult.copy();
     fullResult.fft2d(true);
 
     updateResultImage();
@@ -336,10 +359,10 @@ function valOtf( dist ) {
 }
 
 
-function createOtf( vec, kx=0, ky=0, att=-1 ) {
+function createOtf( vec, kx=0, ky=0, att=-1, coShift=1 ) {
 
     const cyclPxl   =  1./(imageSize*pxlSize);
-    const cutoff    =  (2*objNA)/(emLambda/1000.);
+    const cutoff    =  ((2*objNA)/(emLambda/1000.))*coShift;
     const cutoffPxl =  cutoff/cyclPxl;
 
     for (var y=0; y<vec.size; y++) {
@@ -490,10 +513,10 @@ function updateCorrelationImage( pos ) {
 	for ( var iter=0; iter<2; iter++) {
 	    var bpos = Math.floor(pos/2)*2 +iter;
 	    //logger( "pos -> "+pos+" bpos "+bpos);
-	    for ( var x=0; x<10; x++)
-	    for ( var y=0; y<10; y++) {
+	    for ( var x=0; x<8; x++)
+	    for ( var y=0; y<8; y++) {
 
-		var val = corrSubPxl[ bpos ][x+y*10][2];
+		var val = corrSubPxl[ bpos ][x+y*8][2];
 		//logger( x+" "+y+" "+val);
 		for ( var xz=0; xz<4; xz++)
 		for ( var yz=0; yz<4; yz++) {
@@ -515,6 +538,10 @@ function updateCorrelationImage( pos ) {
     var yo =  maxCorr[pos][1]+imageSize/2;
     ctx.stokeStyle = '#ff4400';
     ctx.arc( xo, yo, 4, 0, Math.PI*2);
+    if ( pos%2 ==1 ) {
+	ctx.moveTo(xo,yo-4),
+	ctx.lineTo( 512-44, 32);
+    }
     ctx.stroke();
 
 }
@@ -531,14 +558,18 @@ function updateResultImage() {
 
     var imgCnv = document.getElementById("resultCanvas");
     var ctx = imgCnv.getContext("2d");
-    var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    //var resData  = fullResult.getImg(false,false);
+    var imgData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
     var resData  = fullResult.data;
-//    var resData  = fullResult.getImg(true,true);
+    
+    var fftCnv = document.getElementById("resultCanvasFFT");
+    var ctf = fftCnv.getContext("2d");
+    var fftData = ctf.getImageData(0,0,imgCnv.width, imgCnv.height);
+    var resFFT   = fullResultFFT.getImg(true,true);
 
 
 
-    var data = fftData.data;
+    var data   = imgData.data;
+    var dataFFT = fftData.data;
     for ( var y = 0 ; y<fullResult.size; y++) {
         for ( var x = 0 ; x<fullResult.size; x++) {
 	    var io  = x + y * imgCnv.width;
@@ -546,18 +577,20 @@ function updateResultImage() {
 	    data[io*4+0] = (resData[2*ii]-min)*scal ;
 	    data[io*4+1] = (resData[2*ii]-min)*scal ;
 	    data[io*4+2] = (resData[2*ii]-min)*scal ;
-	    //data[io*4+0] = resData[ii]*255;
-	    //data[io*4+1] = resData[ii]*255;
-	    //data[io*4+2] = resData[ii]*255;
+	    dataFFT[io*4+0] = resFFT[ii]*255;
+	    dataFFT[io*4+1] = resFFT[ii]*255;
+	    dataFFT[io*4+2] = resFFT[ii]*255;
 	    data[io*4+3] = 0xFF;
+	    dataFFT[io*4+3] = 0xFF;
 	}
     } 
 
-    ctx.putImageData( fftData,0,0);
-    ctx.beginPath();
-    ctx.stokeStyle = '#ff4400';
-    ctx.arc( 512, 512, 10, 0, Math.PI*2);
-    ctx.stroke();
+    ctx.putImageData( imgData,0,0);
+    ctf.putImageData( fftData,0,0);
+    ctf.beginPath();
+    ctf.stokeStyle = '#ff4400';
+    ctf.arc( 512, 512, 10, 0, Math.PI*2);
+    ctf.stroke();
 
 
 }

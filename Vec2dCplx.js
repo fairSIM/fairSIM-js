@@ -120,6 +120,12 @@ class Vec2dCplx {
 	}
     }
 
+    // conjugate each entry
+    conj() {
+	for (var i=0; i<this.length; i++) {
+	    this.data[2*i+1] *= -1.0;
+	}
+    }
 
     // find the maximum, excluding regions close to origin
     findMax( minDist = 100 ) {
