@@ -18,7 +18,7 @@ class Vec2dCplx {
     }
 
  
-    fft2d( dir = true )  {
+    fft2d( dir)  {
 	
 	if (dir) {
 	    // horz.
@@ -124,7 +124,7 @@ class Vec2dCplx {
     // find the maximum, excluding regions close to origin
     findMax( minDist = 100 ) {
 
-	var max = 0;
+	var max = 0, maxRe, maxIm;
 	var posX = 0;
 	var posY = 0; 
 
@@ -140,17 +140,24 @@ class Vec2dCplx {
 		var abs = Math.sqrt( data[2*i]*data[2*i] + data[2*i+1]*data[2*i+1]);
 		if ( abs > max ) {
 		    max = abs;
+		    maxRe = data[2*i];
+		    maxIm = data[2*i+1];
 		    posX = x;
 		    posY = y;
 		}
 	    }
 	} 
     
-	return [ posX, posY, max ];
+	return [ posX, posY, max, maxRe, maxIm ];
 
     }
 
 
+    zero() {
+	for (var i=0; i<this.length*2; i++) {
+	    this.data[i]=0.0;
+	}
+    }
 
 
     // apply a window function do make the FFT nicer

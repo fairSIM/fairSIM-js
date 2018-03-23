@@ -37,12 +37,13 @@ raw images:<br/>
 <div id="image-fft">
 <canvas id="fftCanvas" width="512" height="512"></canvas><br />
 <button id="runInputButton" onclick="importImages()">import</button>
-<button id="displayOtfButton" onclick="updateOtfImage()">show OTF</button>
+<button id="displayOtfButton" onclick="showOtfImage()">show OTF</button>
 </div>
 
 <div id="image-corr">
 <canvas id="corrCanvas" width="512" height="512"></canvas><br />
 <button id="runCorrButton" onclick="computeCorrImages()">compute correlation</button>
+<button id="setCorrButton" onclick="setFixedParameters()">set default</button>
 <input id="corrSlider"  value="0" min="0" max="5" step="1" type="range" oninput="updateCorrelationImage(this.value)" >
 </div>
 

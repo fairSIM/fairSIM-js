@@ -95,6 +95,12 @@ h1 {
     left:10px;
 }
 
+#setCorrButton {
+    position: absolute;
+    top:10px;
+    left:200px;
+}
+
 #corrSlider {
     position: absolute;
     top: 470px;
