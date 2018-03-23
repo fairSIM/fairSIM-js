@@ -48,18 +48,19 @@ function setImage(pos) {
 
     logger("ang: "+ang+" pha: "+pha+" z: "+pos);
 
-/*
     var max=0;
-    for ( var i = 0; i<data.length/4; i++) {
+    for ( var i = 0; i<data.length; i++) {
 	var val = tiffPages[ pos*maxPha + pha + ang*(tiffPages.length/maxAng)  ].data[i];
 	if (val>max) max=val;
     }
-*/
-    for ( var i = 0 ; i<data.length; i++) {
-	data[i] = tiffPages[ pos*maxPha + pha + ang*(tiffPages.length/maxAng)  ].data[i] ;
-/*	data[i*4+1] = data[i*4];
+    max = 255./max;    
+
+
+    for ( var i = 0 ; i<data.length/4; i++) {
+	data[i*4+0] = tiffPages[ pos*maxPha + pha + ang*(tiffPages.length/maxAng)  ].data[i] *max;
+	data[i*4+1] = data[i*4];
 	data[i*4+2] = data[i*4];
-	data[i*4+3] = 0xFF; */
+	data[i*4+3] = 0xFF; 
     }
     ctx.putImageData( imgData,0,0);
     
@@ -87,7 +88,7 @@ function importImages() {
 	for (var pha = 0 ; pha < maxPha ; pha++ ) {
 	    var pos   = z*maxPha + pha + ang*(tiffPages.length/maxAng);
 	    var fftIn = new Vec2dCplx( tiffPages[ pos  ].width );
-	    fftIn.setFromRGB( tiffPages[ pos ].data );
+	    fftIn.setFromTiff( tiffPages[ pos ].data );
 	    fftIn.applyWindow(20);
 	    inputFFTimg.push( fftIn );
 	}
@@ -99,7 +100,8 @@ function importImages() {
 	
 	// band-separate 
 	tmp = bandSeparate( inputFFTimg, ang*maxPha );
-	for (var b=0; b<(maxPha+1)/2; b++) {
+	//for (var b=0; b<(maxPha+1)/2; b++) {
+	for (var b=0; b<maxPha+1; b++) {
 	    bandImg.push(tmp[b]);
 	}
 
@@ -119,18 +121,23 @@ function bandSeparate(inVec, offset) {
     
     for ( var b = 0 ; b<bands; b++) {
 
-	bVec = new Vec2dCplx( inVec[0].size );
+	bVecP = new Vec2dCplx( inVec[0].size );
+	bVecN = new Vec2dCplx( inVec[0].size );
 
 	for ( var i = 0 ; i < maxPha ; i++ ) {
 	
 	    var pha = 2*b*Math.PI * i / maxPha;	
 	   
-	    addVec = inVec[i+offset].copy();  
+	    var addVec = inVec[i+offset].copy();  
 	    addVec.mult( Math.cos(pha), Math.sin(pha));
-	    bVec.add( addVec );
+	    bVecP.add( addVec );
+	    var addVec = inVec[i+offset].copy();  
+	    addVec.mult( Math.cos(-pha), Math.sin(-pha));
+	    bVecN.add( addVec );
 	}
     
-	ret.push( bVec );
+	ret.push( bVecP );
+	ret.push( bVecN );
     }
 
     return ret;
@@ -236,8 +243,11 @@ function computeCorrImages( minDist = 100 ) {
 function setFixedParameters() {
 
     maxCorr = [];
+    maxCorr.push( new Array( 137.433/2,  140.90/2, 0.8, 0.886 ) );
     maxCorr.push( new Array( 137.433,  140.90, 0.8, 0.886 ) );
+    maxCorr.push( new Array( -52.856/2,  189.47/2, 0.8, 2.770 ) );
     maxCorr.push( new Array( -52.856,  189.47, 0.8, 2.770 ) );
+    maxCorr.push( new Array( 190.078/2, -49.967/2, 0.8, 1.872 ) );
     maxCorr.push( new Array( 190.078, -49.967, 0.8, 1.872 ) );
 
 
@@ -261,42 +271,57 @@ function computeReconstruction() {
 
 
     // for all angles
-    //for ( var ang = 0; ang<maxAng; ang++) {
+//    for ( var ang = 0; ang<maxAng; ang++) {
     for ( var ang = 0; ang<1; ang++) {
 	
 	// for all bands
+	//for ( var b=1; b<bands; b++) {
 	for ( var b=2; b<bands; b++) {
 	    
 	    // multiply input w. otf
-	    var bIdx = ang*bands+b;
-	    bandImg[bIdx].times(otf);
-	    
+	    var bIdx = (ang*bands+b)*2;
+	    var cIdx = ang*(bands-1)+b-1;
+
+	    //bandImg[bIdx].times(otf);
+	    //bandImg[ bIdx ].multPhase( maxCorr[cIdx][3] );
+
+	    var tmpP = new Vec2dCplx( imageSize *2 );
+	    var tmpN = new Vec2dCplx( imageSize *2 );
+	    tmpP.paste( bandImg[bIdx], 0,0);
+	    tmpN.paste( bandImg[bIdx+1], 0,0);
+
+
 	    // go to real space
-	    bandImg[bIdx].fft2d(true);
-    
-	    var f = b/2.0;
+	    //bandImg[bIdx].fft2d(true);
+	    tmpP.fft2d(true);
+	    tmpN.fft2d(true);
+
+	    var kx = maxCorr[cIdx][0];
+	    var ky = maxCorr[cIdx][1];
 
 	    // subpixel fourier-shift the band
-	    bandImg[ bIdx ].fourierShift(
-		f*maxCorr[ang][0] - Math.floor( f*maxCorr[ang][0]) ,
-		f*maxCorr[ang][1] - Math.floor( f*maxCorr[ang][1]));
+	    tmpP.fourierShift( kx,ky );
+	    tmpN.fourierShift(-kx,-ky );
+	    
+	    tmpP.multPhase(  maxCorr[cIdx][3] );
+	    tmpN.multPhase( -maxCorr[cIdx][3] );
 	    
 	    // move back to freq. space
-	    bandImg[ bIdx ].fft2d(false);
+	    tmpP.fft2d(false);
+	    tmpN.fft2d(false);
+
 	    
 	    // TODO: apply global phase
 
-
-
 	    // paste into full result
-	    fullResult.paste( bandImg[ bIdx ] ,
-		Math.floor( maxCorr[ang][0]),Math.floor(maxCorr[ang][1]));
-	    logger("pasted angle "+ang+" band "+b+" at "+maxCorr[ang][0]+" "+maxCorr[ang][1]);
+//	    fullResult.paste( tmpP ,0,0);
+	    fullResult.paste( tmpN ,0,0);
+	    logger("pasted angle "+ang+" band "+b+" ("+bIdx+","+cIdx+") at "+kx+" "+ky+" phase "+maxCorr[cIdx][3]);
 	}
 
     }
 
-    fullResult.fft2d(false);
+    fullResult.fft2d(true);
 
     updateResultImage();
 
@@ -507,7 +532,9 @@ function updateResultImage() {
     var imgCnv = document.getElementById("resultCanvas");
     var ctx = imgCnv.getContext("2d");
     var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
+    //var resData  = fullResult.getImg(false,false);
     var resData  = fullResult.data;
+//    var resData  = fullResult.getImg(true,true);
 
 
 
@@ -516,19 +543,21 @@ function updateResultImage() {
         for ( var x = 0 ; x<fullResult.size; x++) {
 	    var io  = x + y * imgCnv.width;
 	    var ii  = x + y * fullResult.size;
-
 	    data[io*4+0] = (resData[2*ii]-min)*scal ;
 	    data[io*4+1] = (resData[2*ii]-min)*scal ;
 	    data[io*4+2] = (resData[2*ii]-min)*scal ;
-	    /*
-	    data[io*4+0] = resData[ii]*255;
-	    data[io*4+1] = resData[ii]*255;
-	    data[io*4+2] = resData[ii]*255;
-	    */
+	    //data[io*4+0] = resData[ii]*255;
+	    //data[io*4+1] = resData[ii]*255;
+	    //data[io*4+2] = resData[ii]*255;
 	    data[io*4+3] = 0xFF;
 	}
     } 
 
     ctx.putImageData( fftData,0,0);
+    ctx.beginPath();
+    ctx.stokeStyle = '#ff4400';
+    ctx.arc( 512, 512, 10, 0, Math.PI*2);
+    ctx.stroke();
+
 
 }

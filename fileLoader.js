@@ -39,7 +39,7 @@ function loaded(evt) {
 
     // decode tiff
     //tiffPages = decode( reader.result, false, true );
-    tiffPages = decode( reader.result, false, false );
+    tiffPages = decode( reader.result, false, true );
 
 
     setImage(0);   

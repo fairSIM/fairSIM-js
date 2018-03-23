@@ -49,10 +49,10 @@ class Vec2dCplx {
 
     // set real-valued entries of this vector from 'input'
     // sets imaginary-valued entries to 0
-    set(input) {
+    setFromTiff(input) {
 
 	for ( var i=0 ; i<this.length ; i++ ) {
-	    this.data [ i*2 ] = input[i];
+	    this.data [ i*2 ] = 1.*input[i];
 	    this.data [ i*2+1 ] =  0.;
 	}
     }   
@@ -302,13 +302,28 @@ class Vec2dCplx {
 
 	    }
 	}
+    }
 
+    // multiply each entry with a phase
+    multPhase( pha ) {
+	var si = Math.sin(pha);
+	var co = Math.cos(pha);
 
+	for (var i=0; i<this.length; i++) {
+	    var r1 = this.data[ i*2 + 0 ];	    
+	    var i1 = this.data[ i*2 + 1 ];	    
+	    var rr = r1 * co - i1 * si ;
+	    var ir = r1 * si + co * i1 ; 
+	    this.data[ i * 2 + 0 ]  = rr;
+	    this.data[ i * 2 + 1 ]  = ir;
+	}
 
     }
 
+
+
     // add the content of a vector half in size, at position x,y
-    paste( vec, kx, ky ) {
+    paste( vec, kx, ky , invert =false) {
 	if ( vec.size > this.size ) {
 	    throw "vector size mismatch";
 	}
@@ -326,7 +341,12 @@ class Vec2dCplx {
 
 
 	    var io = xo + yo * this.size;
-	    var ii = x + y*vec.size;
+	    var ii ;
+	    if (!invert) {
+		ii = x + y*vec.size;
+	    } else {
+		ii = (vec.size-x-1) + vec.size*(vec.size-y-1);
+	    }
 
 	    this.data[ io*2 + 0 ]  += vec.data[ ii*2 + 0 ];
 	    this.data[ io*2 + 1 ]  += vec.data[ ii*2 + 1 ];
