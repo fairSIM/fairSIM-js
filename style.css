@@ -66,6 +66,13 @@ h1 {
     left:10px;
 }
 
+#displayOtfButton {
+    position: absolute;
+    top:10px;
+    left:100px;
+}
+
+
 #fftCanvas {
     position: absolute;
     top:0px;

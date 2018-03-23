@@ -223,15 +223,24 @@ class Vec2dCplx {
 
 
     // compute a (scaled) power spectrum
-    pwSpec( swapQuadrand = true) {
+    getImg( swapQuadrand = true, compLog = true) {
 
 	// create scaling
-	var mm = this.getMinMax();
-	var min = Math.log(mm[0]);
-	var max = Math.log(mm[1]);
+	var mm, min, max;
+	mm = this.getMinMax();
+	
+	if (compLog) {
+	    logger("log min/max "+mm[0]+" "+mm[1]);
+	    min = Math.log(mm[0]);
+	    max = Math.log(mm[1]);
 
-	if ( isNaN( min ) || max-min > 30) 
-	    min = max-30;
+	    if ( isNaN( min ) || max-min > 30) 
+		min = max-30;
+	} else {
+	    min = mm[0];
+	    max = mm[1];
+	    logger("min/max "+min+" "+max);
+	}
 	
 	//logger( min+" "+max);
 
@@ -245,8 +254,12 @@ class Vec2dCplx {
 	    var i = y*size + x;
 	    var r = Math.sqrt( data[i*2] * data[i*2] + data[i*2+1] * data[i*2+1]);
 	
-	    r = (Math.log(r) - min)/(max-min);
-	    if (isNaN(r) || r<0) r=0;
+	    if ( compLog ) {
+		r = (Math.log(r) - min)/(max-min);
+		if (isNaN(r) || r<0) r=0;
+	    } else {
+		//r = (r-min)/(max-min);
+	    }
 	    
 	    if (swapQuadrand) {
 		var xo = (x<size/2)?(x+size/2):(x-size/2);
