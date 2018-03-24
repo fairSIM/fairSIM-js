@@ -124,3 +124,19 @@ h1 {
     left:10px;
 }
 
+#resMaxSlider {
+    position: absolute;
+    top: 45px;
+    left:10px;
+    width:500px;
+}
+
+
+#resMinSlider {
+    position: absolute;
+    top: 70px;
+    left:10px;
+    width:500px;
+}
+
+

@@ -34,12 +34,12 @@ class Vec2dCplx {
 	    for ( var i = 0 ; i< this.size; i++ ) {
 		this.fftBackwards.process( this.data, i*this.size, 1, this.data, i*this.size, 1, 'complex');
 	    }
+	    for ( var i = 0 ; i< 2*this.length; i++) {
+		this.data[i] /= 1.*this.length;
+	    }
 	    // vert.
 	    for ( var i = 0 ; i< this.size; i++ ) {
 		this.fftBackwards.process( this.data, i, this.size, this.data, i, this.size, 'complex');
-	    }
-	    for ( var i = 0 ; i< 2*this.length; i++) {
-		this.data[i] /= this.length;
 	    }
 
 
@@ -189,7 +189,7 @@ class Vec2dCplx {
     }
     
     // get minimum and maximum (abs)
-    getMinMax() {
+    getAbsMinMax() {
 
 	var min = Number.MAX_VALUE;
 	var max = Number.MIN_VALUE;
@@ -204,6 +204,23 @@ class Vec2dCplx {
 	return [min, max];
 
     }
+    
+    getRealMinMax() {
+
+	var min = Number.MAX_VALUE;
+	var max = Number.MIN_VALUE;
+	var data = this.data;
+
+	for ( var i=0; i<this.length; i++) {
+	    var abs = data[2*i];
+	    if (abs > max ) max = abs;
+	    if (abs < min ) min = abs;
+	}
+	
+	return [min, max];
+
+    }
+
 
     // cross-correlate with given vector and offset
     crossCorrelate( vec, kx, ky ) {
@@ -240,10 +257,10 @@ class Vec2dCplx {
 
 	// create scaling
 	var mm, min, max;
-	mm = this.getMinMax();
+	mm = this.getAbsMinMax();
 	
 	if (compLog) {
-	    logger("log min/max "+mm[0]+" "+mm[1]);
+	    //logger("log min/max "+mm[0]+" "+mm[1]);
 	    min = Math.log(mm[0]);
 	    max = Math.log(mm[1]);
 
@@ -252,7 +269,7 @@ class Vec2dCplx {
 	} else {
 	    min = mm[0];
 	    max = mm[1];
-	    logger("min/max "+min+" "+max);
+	    //logger("min/max "+min+" "+max);
 	}
 	
 	//logger( min+" "+max);
@@ -314,6 +331,8 @@ class Vec2dCplx {
     multPhase( pha ) {
 	var si = Math.sin(pha);
 	var co = Math.cos(pha);
+
+	logger("multiplying phase: "+pha);
 
 	for (var i=0; i<this.length; i++) {
 	    var r1 = this.data[ i*2 + 0 ];	    

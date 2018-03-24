@@ -101,7 +101,7 @@ function importImages() {
 	
 	// band-separate 
 	tmp = bandSeparate( inputFFTimg, ang*maxPha );
-	for (var b=0; b<(maxPha+1)/2; b++) {
+	for (var b=0; b<maxPha; b++) {
 	    bandImg.push(tmp[b]);
 	}
 
@@ -122,6 +122,7 @@ function bandSeparate(inVec, offset) {
     for ( var b = 0 ; b<bands; b++) {
 
 	bVec = new Vec2dCplx( inVec[0].size );
+	bVecN = new Vec2dCplx( inVec[0].size );
 
 	for ( var i = 0 ; i < maxPha ; i++ ) {
 	
@@ -130,9 +131,17 @@ function bandSeparate(inVec, offset) {
 	    var addVec = inVec[i+offset].copy();  
 	    addVec.mult( Math.cos(pha), Math.sin(pha));
 	    bVec.add( addVec );
+	    if (b!=0) {
+		var addVec = inVec[i+offset].copy();  
+		addVec.mult( Math.cos(-pha), Math.sin(-pha));
+		bVecN.add( addVec );
+	    }
 	}
     
 	ret.push( bVec );
+	if ( b!= 0 ) {
+	    ret.push( bVecN );
+	}
     }
 
     return ret;
@@ -240,9 +249,9 @@ function setFixedParameters() {
     maxCorr = [];
     maxCorr.push( new Array( 137.433/2,  140.90/2, 0.8, 0.886 ) );
     maxCorr.push( new Array( 137.433,  140.90, 0.8, 0.886 ) );
-    maxCorr.push( new Array( -52.856/2,  189.47/2, 0.8, 2.770 ) );
-    maxCorr.push( new Array( -52.856,  189.47, 0.8, 2.770 ) );
-    maxCorr.push( new Array( 190.078/2, -49.967/2, 0.8, 1.872 ) );
+    maxCorr.push( new Array( -52.856/2,  189.47/2, 0.8, -2.730 ) );
+    maxCorr.push( new Array( -52.856,  189.47, 0.8, -2.730 ) );
+    maxCorr.push( new Array( 190.078/2, -49.967/2, 0.8, 1.873 ) );
     maxCorr.push( new Array( 190.078, -49.967, 0.8, 1.872 ) );
 
 
@@ -260,45 +269,47 @@ function computeReconstruction() {
 
     const bands = (maxPha+1)/2;
     fullResult = new Vec2dCplx( 2*imageSize );
-    
-    const otf = new Vec2dCplx( imageSize );
-    createOtf( otf, 0,0,.1);
 
     var accOTF = new Vec2dCplx( imageSize *2 );
+    var accATT = new Vec2dCplx( imageSize *2 );
     var tmpOTF = new Vec2dCplx( imageSize *2 );
 
     // for all angles
     for ( var ang = 0; ang<maxAng; ang++) {
-    //for ( var ang = 2; ang<3; ang++) {
+    //for ( var ang = 0; ang<1; ang++) {
 
 	
-	createOtf( tmpOTF, 0,0, 0.2 );
+	createOtf( tmpOTF, 0,0, -1. );
 	var tmpZ   = new Vec2dCplx( imageSize *2 );
-	tmpZ.paste( bandImg[ang*bands] );
-	tmpZ.mult(2.,0.);
+	tmpZ.paste( bandImg[ang*maxPha],0,0 );
+	tmpZ.mult(.375,0.);
 	tmpZ.times( tmpOTF );
+	
 	accOTF.add( tmpOTF );
 
 	fullResult.paste( tmpZ, 0, 0 );
 	
 	// for all bands
 	for ( var b=1; b<bands; b++) {
-	//for ( var b=2; b<bands; b++) {
 	    
 	    // multiply input w. otf
-	    var bIdx = ang*bands+b;
+	    var bIdx = ang*maxPha;
 	    var cIdx = ang*(bands-1)+b-1;
 
 	    //bandImg[ bIdx ].multPhase( maxCorr[cIdx][3] );
 
 	    var tmpP   = new Vec2dCplx( imageSize *2 );
 	    var tmpN   = new Vec2dCplx( imageSize *2 );
-	    tmpP.paste( bandImg[bIdx], 0,0);
-	    tmpN.paste( bandImg[bIdx], 0,0, true);
-	    tmpN.conj();	    
-
-	    tmpP.multPhase(  maxCorr[cIdx][3] );
-	    tmpN.multPhase(  maxCorr[cIdx][3] );
+	
+	    tmpP.paste( bandImg[bIdx+b*2-1], 0,0);
+	    tmpN.paste( bandImg[bIdx+b*2], 0,0);
+	    /*
+	    tmpP.paste( bandImg[bIdx+b*2-1], 0,0);
+	    tmpN.paste( bandImg[bIdx+b*2-1], 0,0, true);
+	    tmpP.multPhase( b*maxCorr[cIdx][3] );
+	    tmpN.multPhase(-b*maxCorr[cIdx][3] );
+	    */
+	    //tmpN.conj();	    
 
 	    // go to real space
 	    //bandImg[bIdx].fft2d(true);
@@ -315,28 +326,32 @@ function computeReconstruction() {
 	    // move back to freq. space
 	    tmpP.fft2d(false);
 	    tmpN.fft2d(false);
+	    
+	    tmpP.multPhase( b*maxCorr[cIdx][3] );
+	    tmpN.multPhase(-b*maxCorr[cIdx][3] );
 
 	    // multiply w. OTF
-	    createOtf( tmpOTF, kx,ky, 0.2 );
+	    createOtf( tmpOTF, kx,ky,-1. );
 	    accOTF.add( tmpOTF );
 	    tmpP.times( tmpOTF );
-	    createOtf( tmpOTF, -kx,-ky, 0.2 );
+	    createOtf( tmpOTF, -kx,-ky, -1. );
 	    tmpN.times( tmpOTF );
 	    accOTF.add( tmpOTF );
 
 	    // paste into full result
 	    fullResult.paste( tmpP ,0,0);
 	    fullResult.paste( tmpN ,0,0);
-	    logger("pasted angle "+ang+" band "+b+" ("+bIdx+","+cIdx+") at "+kx+" "+ky+" phase "+maxCorr[cIdx][3]);
+	    logger("pasted angle "+ang+" band "+b+" ("+bIdx+","+cIdx+") at "+kx+" "+ky+" phase "
+		+(b*maxCorr[cIdx][3]));
 	}
 
     }
 
     // Wiener filtering
     for ( var i=0; i<fullResult.length; i++) {
-	var d = Math.pow( accOTF.data[2*i], 2) + 1;
-	fullResult.data[2*i+0] /= d;
-	fullResult.data[2*i+1] /= d;
+	var d = 1/( Math.pow( accOTF.data[2*i], 2) + .0025 );
+	fullResult.data[2*i+0] *= d;
+	fullResult.data[2*i+1] *= d;
     }
 
     // APO
@@ -355,6 +370,8 @@ function computeReconstruction() {
 function valOtf( dist ) {
     if ((dist<0)||(dist>=1))
 	return 0.0;
+    if (dist == 1 )
+	return 1.0;
     return (2/Math.PI)*(Math.acos(dist) - dist*Math.sqrt(1-dist*dist));
 }
 
@@ -381,7 +398,8 @@ function createOtf( vec, kx=0, ky=0, att=-1, coShift=1 ) {
 		val *= 1.0-Math.exp( -(dist/cutoffPxl/att));
 	    }
 
-	    vec.set(x,y,val,0);
+	    vec.data[(x+y*vec.size)*2+0] = val;
+	    vec.data[(x+y*vec.size)*2+1] = 0.0;
 
 	}
     }
@@ -546,15 +564,26 @@ function updateCorrelationImage( pos ) {
 
 }
 
-function updateResultImage() {
+function updateResultImage(slMin=-1, slMax=100) {
 
     if ( fullResult == null ) {
 	return;
     }
 
-    var minMax = fullResult.getMinMax();
-    var scal = 255./(minMax[1]-minMax[0]);
-    var min = minMax[0];
+    //logger("Updating image: "+slMax);
+
+    var minMax = fullResult.getRealMinMax();
+    //var scal = 255./(minMax[1]-minMax[0]);
+    var scal,min,max;
+    if (slMin==-1){
+	scal = 255./(minMax[1]*(slMax/100.));
+	min = 0;
+    } else {
+	min = minMax[0]	+ (minMax[1]-minMax[0])*.5*slMin/100.;
+	max = minMax[0] + (minMax[1]-minMax[0])*slMax/100.;
+	if (min>max-5) max=min+5;
+	scal = 255./(max-min);
+    }
 
     var imgCnv = document.getElementById("resultCanvas");
     var ctx = imgCnv.getContext("2d");
@@ -577,6 +606,9 @@ function updateResultImage() {
 	    data[io*4+0] = (resData[2*ii]-min)*scal ;
 	    data[io*4+1] = (resData[2*ii]-min)*scal ;
 	    data[io*4+2] = (resData[2*ii]-min)*scal ;
+	    //data[io*4+0] = (resData[2*ii])*scal ;
+	    //data[io*4+1] = (resData[2*ii])*scal ;
+	    //data[io*4+2] = (resData[2*ii])*scal ;
 	    dataFFT[io*4+0] = resFFT[ii]*255;
 	    dataFFT[io*4+1] = resFFT[ii]*255;
 	    dataFFT[io*4+2] = resFFT[ii]*255;
