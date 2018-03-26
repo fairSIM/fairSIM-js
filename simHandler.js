@@ -82,6 +82,8 @@ function importImages() {
  
     inputFFTimg = [];
     bandImg     = [];
+    
+    const bands = (maxPha+1)/2;
 
     for (var ang = 0 ; ang < maxAng ; ang++ ) {
 	
@@ -97,14 +99,22 @@ function importImages() {
 	// fft input image
 	for (var pha = 0 ; pha < maxPha ; pha++ ) {
 	    inputFFTimg[ pha+ang*maxPha].fft2d(false);
+
+	    /*
+    	    // used to cross-check fft(k) = fft*(-k)
+	    var tmp = inputFFTimg[ pha+ang*maxPha].duplicateMirrored();
+	    tmp.conj();
+	    logger("diff: "+tmp.comp( inputFFTimg[ pha+ang*maxPha] ));
+	    tmp.mult(-1.,0.);    
+	    inputFFTimg[ pha+ang*maxPha].add(tmp);
+	    */
 	} 
 	
 	// band-separate 
 	tmp = bandSeparate( inputFFTimg, ang*maxPha );
-	for (var b=0; b<maxPha; b++) {
+	for (var b=0; b<bands; b++) {
 	    bandImg.push(tmp[b]);
 	}
-
 
     }
 
@@ -122,30 +132,42 @@ function bandSeparate(inVec, offset) {
     for ( var b = 0 ; b<bands; b++) {
 
 	bVec = new Vec2dCplx( inVec[0].size );
-	bVecN = new Vec2dCplx( inVec[0].size );
+	//bVecN = new Vec2dCplx( inVec[0].size );
 
 	for ( var i = 0 ; i < maxPha ; i++ ) {
 	
 	    var pha = 2*b*Math.PI * i / maxPha;	
 	   
-	    var addVec = inVec[i+offset].copy();  
+	    var addVec = inVec[i+offset].duplicate();  
 	    addVec.mult( Math.cos(pha), Math.sin(pha));
 	    bVec.add( addVec );
+	   
+	    /* 
+	    // generate the conj. bands -1, -2 
 	    if (b!=0) {
-		var addVec = inVec[i+offset].copy();  
-		addVec.mult( Math.cos(-pha), Math.sin(-pha));
-		bVecN.add( addVec );
-	    }
+		var addVecN = inVec[i+offset].duplicate();  
+		addVecN.mult( Math.cos(-pha), Math.sin(-pha));
+		bVecN.add( addVecN );
+	    } */
+	
 	}
     
 	ret.push( bVec );
-	if ( b!= 0 ) {
-	    ret.push( bVecN );
+   
+	/*
+	// cross-check if the conj. bands are generated correctly
+	if (b!=0) { 
+	    // cross-check: there is no need to generate the conj.
+	    // bands explicitly, they should just be band[i].conj().
+	    // However, that failed before...
+	    var bVecN2 = bVec.duplicateMirrored();
+	    bVecN2.conj();	
+	    logger( "cross-check: "+b+" "+bVecN2.comp( bVecN ));
 	}
+	*/
+
     }
-
     return ret;
-
 }
 
 // calculates the cross-correlation between bands
@@ -167,30 +189,31 @@ function computeCorrImages( minDist = 100 ) {
 
     for (var ang = 0 ; ang < maxAng ; ang++ ) {
 
-	var bZero = bandImg[ ang*bands ].copy();
+	var bZero = bandImg[ ang*bands ].duplicate();
 	bZero.times(otf);
 	bZero.fft2d(true);
 
 	for ( var b=1; b<bands; b++) {
 
-	    var c = bandImg[ (b +ang*bands ) ].copy();
+	    var c = bandImg[ (b +ang*bands ) ].duplicate();
 
 	    //c.times(otf);
+    	    c.times(otf);
 	    c.fft2d(true);
 	    c.times( bZero );
 	    c.fft2d(false);
 	    corrImg.push(c);
     
 	    // find the brightest pixel
-	    var max = c.findMax();
+	    var max = c.findMax(60*b);
 
 	    // do a subpixel-precision fit
 	    if ( b==2) {
 
-		// compute the common region
-		// TODO
+		// TODO: This should actually compute the common regions
+		// between bands first ...
 
-		bHigh = bandImg[ (b +ang*bands ) ].copy();
+		bHigh = bandImg[ (b +ang*bands ) ].duplicate();
 		bHigh.fft2d(true);
 	
 		// compute the correlation
@@ -200,9 +223,6 @@ function computeCorrImages( minDist = 100 ) {
 		    var spTmp = [], maxValue=0, minValue = Number.MAX_VALUE;
 		    logger( "Fitting angle "+ang+", iteration "+iter);
 
-
-		    
-	
 		    for ( var x=0; x<8; x++ )
 		    for ( var y=0; y<8; y++ ) {
 			var kx = max[0] + ((x-3.5)/3.5)*((iter==0)?(2):(0.5));
@@ -227,14 +247,19 @@ function computeCorrImages( minDist = 100 ) {
 		    max[0] = maxX;
 		    max[1] = maxY;
 		}
-	    }
+	    
+		// now, retrieve the phase from correlation band 0 to band 1
+		//var valMagPha = 
 
-	    // wrap the position to -size/2 .. size/2
-	    max[0] =  (max[0]<imageSize/2)?(max[0]):(max[0]-imageSize);
-	    max[1] =  (max[1]<imageSize/2)?(max[1]):(max[1]-imageSize);
-	    logger(" "+ang+" "+b+" -> "+max[0]+" "+max[1]);
+
+
+		// wrap the position to -size/2 .. size/2
+		max[0] =  (max[0]<imageSize/2)?(max[0]):(max[0]-imageSize);
+		max[1] =  (max[1]<imageSize/2)?(max[1]):(max[1]-imageSize);
+		logger(" "+ang+" "+b+" -> "+max[0]+" "+max[1]);
  
-	    maxCorr.push( max );
+		maxCorr.push( max );
+	    }
 
 	}
     }    
@@ -247,13 +272,9 @@ function computeCorrImages( minDist = 100 ) {
 function setFixedParameters() {
 
     maxCorr = [];
-    maxCorr.push( new Array( 137.433/2,  140.90/2, 0.8, 0.886 ) );
     maxCorr.push( new Array( 137.433,  140.90, 0.8, 0.886 ) );
-    maxCorr.push( new Array( -52.856/2,  189.47/2, 0.8, -2.730 ) );
-    maxCorr.push( new Array( -52.856,  189.47, 0.8, -2.730 ) );
-    maxCorr.push( new Array( 190.078/2, -49.967/2, 0.8, 1.873 ) );
+    maxCorr.push( new Array( -52.856,  189.47, 0.8, 2.730 ) );
     maxCorr.push( new Array( 190.078, -49.967, 0.8, 1.872 ) );
-
 
 }
 
@@ -276,13 +297,12 @@ function computeReconstruction() {
 
     // for all angles
     for ( var ang = 0; ang<maxAng; ang++) {
-    //for ( var ang = 0; ang<1; ang++) {
 
 	
 	createOtf( tmpOTF, 0,0, -1. );
 	var tmpZ   = new Vec2dCplx( imageSize *2 );
-	tmpZ.paste( bandImg[ang*maxPha],0,0 );
-	tmpZ.mult(.375,0.);
+	tmpZ.paste( bandImg[ang*bands],0,0 );
+	tmpZ.mult(.5,0.);
 	tmpZ.times( tmpOTF );
 	
 	accOTF.add( tmpOTF );
@@ -290,19 +310,21 @@ function computeReconstruction() {
 	fullResult.paste( tmpZ, 0, 0 );
 	
 	// for all bands
-	for ( var b=1; b<bands; b++) {
+	for ( var b=1; b<bands-1; b++) {
 	    
 	    // multiply input w. otf
-	    var bIdx = ang*maxPha;
+	    var bIdx = ang*bands+b;
 	    var cIdx = ang*(bands-1)+b-1;
 
 	    //bandImg[ bIdx ].multPhase( maxCorr[cIdx][3] );
 
 	    var tmpP   = new Vec2dCplx( imageSize *2 );
-	    var tmpN   = new Vec2dCplx( imageSize *2 );
 	
-	    tmpP.paste( bandImg[bIdx+b*2-1], 0,0);
-	    tmpN.paste( bandImg[bIdx+b*2], 0,0);
+	    tmpP.paste( bandImg[bIdx], 0,0);
+	    tmpN = tmpP.duplicateMirrored();    
+	    tmpN.conj();
+
+	
 	    /*
 	    tmpP.paste( bandImg[bIdx+b*2-1], 0,0);
 	    tmpN.paste( bandImg[bIdx+b*2-1], 0,0, true);
@@ -349,7 +371,7 @@ function computeReconstruction() {
 
     // Wiener filtering
     for ( var i=0; i<fullResult.length; i++) {
-	var d = 1/( Math.pow( accOTF.data[2*i], 2) + .0025 );
+	var d = 1/( Math.pow( accOTF.data[2*i], 2) + .05 );
 	fullResult.data[2*i+0] *= d;
 	fullResult.data[2*i+1] *= d;
     }
@@ -358,7 +380,7 @@ function computeReconstruction() {
     createOtf( tmpOTF, 0,0,-1,1.9);
     fullResult.times( tmpOTF );
 
-    fullResultFFT = fullResult.copy();
+    fullResultFFT = fullResult.duplicate();
     fullResult.fft2d(true);
 
     updateResultImage();
@@ -419,7 +441,7 @@ function updateFFTimage( pos ) {
     var imgCnv = document.getElementById("fftCanvas");
     var ctx = imgCnv.getContext("2d");
     var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    var pwSpec  = inputFFTimg[pos].getImg();
+    var pwSpec  = inputFFTimg[pos].getImg(false);
 
 
     var data = fftData.data;
@@ -606,13 +628,10 @@ function updateResultImage(slMin=-1, slMax=100) {
 	    data[io*4+0] = (resData[2*ii]-min)*scal ;
 	    data[io*4+1] = (resData[2*ii]-min)*scal ;
 	    data[io*4+2] = (resData[2*ii]-min)*scal ;
-	    //data[io*4+0] = (resData[2*ii])*scal ;
-	    //data[io*4+1] = (resData[2*ii])*scal ;
-	    //data[io*4+2] = (resData[2*ii])*scal ;
+	    data[io*4+3] = 0xFF;
 	    dataFFT[io*4+0] = resFFT[ii]*255;
 	    dataFFT[io*4+1] = resFFT[ii]*255;
 	    dataFFT[io*4+2] = resFFT[ii]*255;
-	    data[io*4+3] = 0xFF;
 	    dataFFT[io*4+3] = 0xFF;
 	}
     } 

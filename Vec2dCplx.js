@@ -10,14 +10,15 @@ class Vec2dCplx {
 	this.fftBackwards = new FFT.complex(size, true);  
     }
    
-    copy() {
+    // duplicate this vector
+    duplicate() {
 	var ret = new Vec2dCplx( this.size );
 	for ( var i=0; i<this.length*2; i++)
 	    ret.data[i] = this.data[i];
 	return ret;
     }
 
- 
+    // Fourier-transform this vector (forward or backwards)
     fft2d( dir)  {
 	
 	if (dir) {
@@ -67,12 +68,20 @@ class Vec2dCplx {
 	}
     }   
 
+    // set each imaginary component to zero
+    clearImag() {
+	for (var i=0; i<this.length; i++) {
+	    this.data[2*i+1] = 0.0;
+	}
+    }
 
+    // set entry at x,y to val, imag. component to zero
     set( x, y, val ) {
 	this.data[ (this.size * y + x)*2 + 0 ] = val;
 	this.data[ (this.size * y + x)*2 + 1 ] = 0;
     }
 
+    // set entry at x,y, to (re,im)
     set( x, y, re, im ) {
 	this.data[ (this.size * y + x)*2 + 0 ] = re;
 	this.data[ (this.size * y + x)*2 + 1 ] = im;
@@ -126,6 +135,20 @@ class Vec2dCplx {
 	    this.data[2*i+1] *= -1.0;
 	}
     }
+    
+    // compare two vectors, return sum of abs. point-wise difference
+    comp( vec ) {
+	if ( vec.length != this.length ) {
+	    throw "add: vector size mismatch";
+	}
+	var res = 0.0;
+	for ( var i=0 ; i<this.length ; i++ ) {
+	    res += Math.abs( this.data[2*i] - vec.data[2*i] ); 
+	    res += Math.abs( this.data[2*i+1] - vec.data[2*i+1] ); 
+	}
+	return res;
+    }
+
 
     // find the maximum, excluding regions close to origin
     findMax( minDist = 100 ) {
@@ -158,7 +181,7 @@ class Vec2dCplx {
 
     }
 
-
+    // set every entry to zero
     zero() {
 	for (var i=0; i<this.length*2; i++) {
 	    this.data[i]=0.0;
@@ -205,6 +228,7 @@ class Vec2dCplx {
 
     }
     
+    // get minimum and maximum only from real-value'd componenet
     getRealMinMax() {
 
 	var min = Number.MAX_VALUE;
@@ -252,7 +276,123 @@ class Vec2dCplx {
     }
 
 
-    // compute a (scaled) power spectrum
+    // swap the quandrands of this vector
+    swapQuadrands() {
+
+	var size= this.size;
+	var tmpRe=0.0, tmpIm=0.0;
+	var data = this.data;
+
+	for ( var y=0 ; y<size/2 ; y++ ) {
+	    for ( var x=0 ; x<size/2 ; x++ ) {
+		// 1 <-> 3
+		tmpRe = this.data[ 2* (x+size*y) + 0 ];
+		tmpIm = this.data[ 2* (x+size*y) + 1 ];
+		this.data[ 2* (x+size*y) + 0 ] = this.data[ 2 * (x+size/2 + (y+size/2)*size) + 0 ];
+		this.data[ 2* (x+size*y) + 1 ] = this.data[ 2 * (x+size/2 + (y+size/2)*size) + 1 ];
+		this.data[ 2 * (x+size/2 + (y+size/2)*size) + 0 ] = tmpRe;
+		this.data[ 2 * (x+size/2 + (y+size/2)*size) + 1 ] = tmpIm; 
+		// 2 <-> 4
+		tmpRe = this.data[ 2* (x+size/2+ size*y) + 0 ];
+		tmpIm = this.data[ 2* (x+size/2+ size*y) + 1 ];
+		this.data[ 2* (x+size/2+ size*y) + 0 ] = this.data[ 2 * (x + (y+size/2)*size) + 0 ];
+		this.data[ 2* (x+size/2+ size*y) + 1 ] = this.data[ 2 * (x + (y+size/2)*size) + 1 ];
+		this.data[ 2 * (x+ (y+size/2)*size) + 0 ] = tmpRe;
+		this.data[ 2 * (x+ (y+size/2)*size) + 1 ] = tmpIm; 
+	    }
+	}
+    }
+
+
+
+    // TODO: this should be the same as copyMirrored(), but on an existing
+    // vector. However, it isn't, and I am too lazy to debug this now
+
+    /*
+    // mirror this vector
+    // this keeps val[0,0] at ret[0,0], so suited for fft*(-k) <-> fft(k) - style
+    // operations
+    mirror() {
+
+	var size= this.size;
+	var tmpRe=0.0, tmpIm=0.0;
+	var data = this.data;
+		
+	for (var c=1; c<this.size/2; c++) {
+	    // lines
+	    tmpRe = this.data[2*c+0];
+	    tmpIm = this.data[2*c+1];
+	    this.data[2*c+0] = this.data[2*(this.size-c)+0];
+	    this.data[2*c+1] = this.data[2*(this.size-c)+1];
+	    this.data[2*(this.size-c)+0] = tmpRe;
+	    this.data[2*(this.size-c)+1] = tmpIm;
+    	    
+	    tmpRe = this.data[2*(c*this.size)+0]; 
+	    tmpIm = this.data[2*(c*this.size)+1]; 
+    	    this.data[2*(c*this.size)+0] = this.data[2*this.size*(this.size-c)+0];
+	    this.data[2*(c*this.size)+1] = this.data[2*this.size*(this.size-c)+1];
+	    this.data[2*this.size*(this.size-c)+0] = tmpRe;
+	    this.data[2*this.size*(this.size-c)+1] = tmpIm; 
+	}   
+
+	for ( var y=1 ; y<size/2 ; y++ ) {
+	    for ( var x=1 ; x<size/2 ; x++ ) {
+		// 1 <-> 3
+		tmpRe = this.data[ 2* (x+size*y) + 0 ];
+		tmpIm = this.data[ 2* (x+size*y) + 1 ];
+		this.data[ 2* (x+size*y) + 0 ] = this.data[ 2 * (size-x + (size-y)*size) + 0 ];
+		this.data[ 2* (x+size*y) + 1 ] = this.data[ 2 * (size-x + (size-y)*size) + 1 ];
+		this.data[ 2 * (size-x + (size-y)*size) + 0 ] = tmpRe;
+		this.data[ 2 * (size-x + (size-y)*size) + 1 ] = tmpIm; 
+		// 2 <-> 4
+		tmpRe = this.data[ 2* (size-x + size*y) + 0 ];
+		tmpIm = this.data[ 2* (size-x + size*y) + 1 ];
+		this.data[ 2* (size-x + size*y) + 0 ] = this.data[ 2 * (x + (size-y)*size) + 0 ];
+		this.data[ 2* (size-x + size*y) + 1 ] = this.data[ 2 * (x + (size-y)*size) + 1 ];
+		this.data[ 2 * (x+ (size-y)*size) + 0 ] = tmpRe;
+		this.data[ 2 * (x+ (size-y)*size) + 1 ] = tmpIm; 
+	    }
+	}
+
+    }
+    */
+    
+
+    // returns an x-y-mirror'd copy of this vector
+    // this keeps val[0,0] at ret[0,0], so suited for fft*(-k) <-> fft(k) - style
+    // operations
+    duplicateMirrored() {
+	var ret = new Vec2dCplx( this.size );
+	for (var c=1; c<this.size; c++) {
+	    // lines
+	    ret.data[2*c+0] = this.data[2*(this.size-c)+0];
+	    ret.data[2*c+1] = this.data[2*(this.size-c)+1];
+	    ret.data[2*(c*this.size)+0] = this.data[2*this.size*(this.size-c)+0];
+	    ret.data[2*(c*this.size)+1] = this.data[2*this.size*(this.size-c)+1];
+	}
+
+	for (var y=1; y<this.size; y++) {
+	    // quadrands
+	    for (var x=1; x<this.size; x++) {
+		var i = x + y * this.size;
+		var j = (this.size - x  )  + (this.size - y )*this.size;	    
+		ret.data[2*j+0] = this.data[2*i+0];
+		ret.data[2*j+1] = this.data[2*i+1];
+	    }
+	}
+	
+	// DC
+	ret.data[0] = this.data[0] ;
+	ret.data[1] = this.data[1] ;
+
+	return ret;
+    }
+
+
+
+
+    // compute an (if requested, quadrand-swapped and/or log'd)
+    // power spectrum
     getImg( swapQuadrand = true, compLog = true) {
 
 	// create scaling
