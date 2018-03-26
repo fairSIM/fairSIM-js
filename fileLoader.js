@@ -58,4 +58,27 @@ function errorHandler(evt) {
 }
 
 
+function downloadExample() {
+
+    var xhr =  new XMLHttpRequest();
+    xhr.open('GET', './examples.tif', true);
+    xhr.responseType = 'arraybuffer';
+    xhr.onreadystatechange = function() {
+	if (xhr.readyState == 4 ) {
+	    tiffPages = decode( new Uint8Array(this.response), false, true );
+
+
+	    setImage(0);   
+	    document.getElementById("zSlider").max = (tiffPages.length/15)-1;
+	    document.getElementById("sSlider").max = 14;
+	    //document.getElementById("status").innerHTML="100% done, TIFF decoded";	
+	    
+	    logger("loaded tiff: "+tiffPages.length+" slices @"
+		+tiffPages[0].width+"x"+tiffPages[0].height);
+
+	}
+    }
+    xhr.send(null);
+}
+
 

@@ -470,7 +470,7 @@ function updateFFTimage( pos ) {
     var imgCnv = document.getElementById("fftCanvas");
     var ctx = imgCnv.getContext("2d");
     var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    var pwSpec  = inputFFTimg[pos].getImg(false);
+    var pwSpec  = inputFFTimg[pos].getImg();
 
 
     var data = fftData.data;
