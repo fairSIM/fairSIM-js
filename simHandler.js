@@ -275,7 +275,7 @@ function computeCorrImages( minDist = 100 ) {
 	}
     }    
     
-    //logger(maxCorr);
+    logger("SIM parameters computed");
 
     updateCorrelationImage(document.getElementById("corrSlider").value);
 }
@@ -412,7 +412,12 @@ function computeReconstruction() {
     fullResultFFT = fullResult.duplicate();
     fullResult.fft2d(true);
 
-    updateResultImage();
+
+    logger("SIM reconstruction complete");
+
+	updateResultImage(
+	    document.getElementById("resMinSlider").value, 
+	    document.getElementById("resMaxSlider").value);
 
 
 }
@@ -461,8 +466,6 @@ function createOtf( vec, kx=0, ky=0, att=-1, coShift=1 ) {
 
 function updateFFTimage( pos ) {
 
-    showOtfInInput = false;
-
     if ( inputFFTimg == null || inputFFTimg.length == 0 ) {
 	return;
     }
@@ -485,9 +488,17 @@ function updateFFTimage( pos ) {
 }
 
 
-function showOtfImage() {
-   showOtfInInput = true;
-   updateOtfImage(document.getElementById("corrSlider").value);
+function toggleOtfImage( val  ) {
+    showOtfInInput = val;
+
+    if (showOtfInInput) {
+       updateOtfImage(document.getElementById("corrSlider").value);
+    } else {
+	updateFFTimage(document.getElementById("sSlider").value);
+	updateResultImage(
+	    document.getElementById("resMinSlider").value, 
+	    document.getElementById("resMaxSlider").value);
+    }
 }
 
 
@@ -528,9 +539,9 @@ function updateOtfImage( pos ) {
 	var xo =  maxCorr[Math.floor(pos/2)][0] * (1+pos%2);
 	var yo =  maxCorr[Math.floor(pos/2)][1] * (1+pos%2);
 
-    	createOtf( otfVec , xo, yo, .1 );
+    	createOtf( otfVec , xo, yo, attFactor );
 	var otfImg1 = otfVec.getImg(true,false);
-	createOtf( otfVec , 0, 0, .1 );
+	createOtf( otfVec , 0, 0, attFactor );
 	var otfImg0 = otfVec.getImg(true,false);
 	
 	for ( var i = 0 ; i<data.length/4; i++) {
@@ -546,6 +557,52 @@ function updateOtfImage( pos ) {
 	ctx.putImageData( fftData,0,0);
     
     }
+
+    // compute the full output
+    /*
+    if (maxCorr != null && maxCorr.length != 0 ) {
+	var imgCnv = document.getElementById("resultCanvasFFT");
+	var ctx = imgCnv.getContext("2d");
+	var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
+
+	var otf0 = new Vec2dCplx( imageSize*2 );
+	var otf1 = new Vec2dCplx( imageSize*2 );
+	var otf2 = new Vec2dCplx( imageSize*2 );
+	var tmp  = new Vec2dCplx( imageSize*2 );
+	var data = fftData.data;
+   
+	createOtf( otf0 , 0, 0, attFactor );
+
+	for (var ang =0; ang<maxAng; ang++) {
+ 
+	    var xo =  maxCorr[ang][0] ;
+	    var yo =  maxCorr[ang][1] ;
+
+	    createOtf( tmp , xo, yo, attFactor );
+	    otf1.add( tmp );	
+	    createOtf( tmp , -xo, -yo, attFactor );
+	    otf1.add( tmp );	
+	    createOtf( tmp , 2*xo, 2*yo, attFactor );
+	    otf2.add( tmp );	
+	    createOtf( tmp , -2*xo, -2*yo, attFactor );
+	    otf2.add( tmp );	
+	}	
+
+	var dat0 = otf0.getImg(true,false);
+	var dat1 = otf1.getImg(true,false);
+	var dat2 = otf2.getImg(true,false);
+
+	for ( var i = 0 ; i<data.length/4; i++) {
+	    
+	    data[i*4+0] = dat0[i]*100 ;
+	    data[i*4+1] = dat1[i]*100 ;
+	    data[i*4+2] = dat2[i]*100 ;
+	    data[i*4+3] = 0xFF;
+	} 
+	
+	ctx.putImageData( fftData,0,0);
+    } 
+    */
 
 }
 
@@ -601,7 +658,7 @@ function updateCorrelationImage( pos ) {
 
     ctx.putImageData( fftData,0,0);
 
-    logger("displ: ang "+ang+"  band "+b);
+    //logger("displ: ang "+ang+"  band "+b);
 
     ctx.beginPath();
     var xo =  maxCorr[ang][0]*b+imageSize/2;

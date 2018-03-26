@@ -38,15 +38,41 @@ raw images:<br/>
 <div id="image-fft">
 <canvas id="fftCanvas" width="512" height="512"></canvas><br />
 <button id="runInputButton" onclick="importImages()">import</button>
-<button id="displayOtfButton" onclick="showOtfImage()">show OTF</button>
 </div>
 
 <div id="image-corr">
 <canvas id="corrCanvas" width="512" height="512"></canvas><br />
 <button id="runCorrButton" onclick="computeCorrImages()">compute correlation</button>
-<button id="setCorrButton" onclick="setFixedParameters()">set default</button>
+<!-- <button id="setCorrButton" onclick="setFixedParameters()">set default</button> -->
 <input id="corrSlider"  value="0" min="0" max="5" step="1" type="range" oninput="updateCorrelationImage(this.value)" >
 </div>
+
+<div id="image-control">
+<div id="image-control-content"
+<p>Settings</p>
+<hr />
+<label for="inp_otfna">OTF NA: </label>
+<input id="inp_otfna" type="number" value="1.4" min="0.4" max="1.7" step="0.05" oninput="objNA=inp_otfna.value"/>
+<br />
+<label for="inp_emwl">em. wavelength: </label>
+<input id="inp_emwl" type="number" value="525" min="400" max="680" step="10" oninput="emLambda=inp_emwl.value"/>
+<br />
+<hr />
+<label class="switch" for="inp_attOnOff">Attenuate OTF?</label>
+<input id="inp_attOnOff" type="checkbox" checked="true"
+    onclick="attFactor=(inp_attOnOff.checked)?(inp_attval.value):(-1);" />
+<label for="inp_attFactor">Attenuation </label>
+<input id="inp_attval" type="number" value="0.4" min="0.05" max="0.9" step="0.05" 
+    oninput="attFactor=(inp_attOnOff.checked)?(inp_attval.value):(-1);" />
+<br />
+<hr />
+<button id="updateOtfButton" onclick="toggleOtfImage(true)">show/update OTF display</button>
+<button id="hideOtfButton" onclick="toggleOtfImage(false)">hidde OTF display</button>
+
+
+</div>
+</div>
+
 
 
 <div id="image-result">
