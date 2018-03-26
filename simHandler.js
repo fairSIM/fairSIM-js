@@ -12,6 +12,8 @@ var maxPha = 5;
 
 var objNA=1.4;
 var emLambda=525;
+var attFactor = 0.4;
+
 var imageSize = 512;
 var pxlSize   = 0.08;
 
@@ -214,6 +216,7 @@ function computeCorrImages( minDist = 100 ) {
 		// between bands first ...
 
 		bHigh = bandImg[ (b +ang*bands ) ].duplicate();
+		bHigh.times(otf);
 		bHigh.fft2d(true);
 	
 		// compute the correlation
@@ -248,15 +251,23 @@ function computeCorrImages( minDist = 100 ) {
 		    max[1] = maxY;
 		}
 	    
-		// now, retrieve the phase from correlation band 0 to band 1
-		//var valMagPha = 
-
-
-
-		// wrap the position to -size/2 .. size/2
+		// store the coordinates
 		max[0] =  (max[0]<imageSize/2)?(max[0]):(max[0]-imageSize);
 		max[1] =  (max[1]<imageSize/2)?(max[1]):(max[1]-imageSize);
-		logger(" "+ang+" "+b+" -> "+max[0]+" "+max[1]);
+		max[0] /= 2;		
+		max[1] /= 2;		
+
+		// now, retrieve the phase from correlation band 0 to band 1
+		// wrap the position to -size/2 .. size/2
+    		var bLow  = bandImg[ang*bands+1].duplicate();
+		bLow.times( otf );
+		bLow.fft2d(true);
+
+		var valMagPha = bZero.crossCorrelate( bLow, max[0], max[1]);
+
+
+		max[3] = -Math.atan2( valMagPha[1], valMagPha[0]);
+		logger("paramFit: "+ang+" "+b+" -> "+max[0]+" "+max[1]+" pha "+max[3]);
  
 		maxCorr.push( max );
 	    }
@@ -272,10 +283,9 @@ function computeCorrImages( minDist = 100 ) {
 function setFixedParameters() {
 
     maxCorr = [];
-    maxCorr.push( new Array( 137.433,  140.90, 0.8, 0.886 ) );
-    maxCorr.push( new Array( -52.856,  189.47, 0.8, 2.730 ) );
-    maxCorr.push( new Array( 190.078, -49.967, 0.8, 1.872 ) );
-
+    maxCorr.push( new Array( 137.433/2,  140.90/2, 0.8, 0.886 ) );
+    maxCorr.push( new Array( -52.856/2,  189.47/2, 0.8, 2.730 ) );
+    maxCorr.push( new Array( 190.078/2, -49.967/2, 0.8, 1.872 ) );
 }
 
 
@@ -291,8 +301,12 @@ function computeReconstruction() {
     const bands = (maxPha+1)/2;
     fullResult = new Vec2dCplx( 2*imageSize );
 
+    // sum up std. OTF
     var accOTF = new Vec2dCplx( imageSize *2 );
+    
+    // sum up att. OTF
     var accATT = new Vec2dCplx( imageSize *2 );
+    
     var tmpOTF = new Vec2dCplx( imageSize *2 );
 
     // for all angles
@@ -300,17 +314,20 @@ function computeReconstruction() {
 
 	
 	createOtf( tmpOTF, 0,0, -1. );
+	accOTF.add( tmpOTF );
+	createOtf( tmpOTF, 0,0, attFactor );
+	accATT.add( tmpOTF );
+	
 	var tmpZ   = new Vec2dCplx( imageSize *2 );
 	tmpZ.paste( bandImg[ang*bands],0,0 );
 	tmpZ.mult(.5,0.);
 	tmpZ.times( tmpOTF );
 	
-	accOTF.add( tmpOTF );
 
 	fullResult.paste( tmpZ, 0, 0 );
 	
 	// for all bands
-	for ( var b=1; b<bands-1; b++) {
+	for ( var b=1; b<bands; b++) {
 	    
 	    // multiply input w. otf
 	    var bIdx = ang*bands+b;
@@ -338,8 +355,8 @@ function computeReconstruction() {
 	    tmpP.fft2d(true);
 	    tmpN.fft2d(true);
 
-	    var kx = maxCorr[cIdx][0];
-	    var ky = maxCorr[cIdx][1];
+	    var kx = maxCorr[ang][0]*b;
+	    var ky = maxCorr[ang][1]*b;
 
 	    // subpixel fourier-shift the band
 	    tmpP.fourierShift( kx,ky );
@@ -349,29 +366,41 @@ function computeReconstruction() {
 	    tmpP.fft2d(false);
 	    tmpN.fft2d(false);
 	    
-	    tmpP.multPhase( b*maxCorr[cIdx][3] );
-	    tmpN.multPhase(-b*maxCorr[cIdx][3] );
+	    tmpP.multPhase( b*maxCorr[ang][3] );
+	    tmpN.multPhase(-b*maxCorr[ang][3] );
 
 	    // multiply w. OTF
-	    createOtf( tmpOTF, kx,ky,-1. );
+	    createOtf( tmpOTF, kx,ky, -1. );
 	    accOTF.add( tmpOTF );
+	    createOtf( tmpOTF, kx,ky, attFactor );
+	    accATT.add( tmpOTF );
+	    
 	    tmpP.times( tmpOTF );
+	    
 	    createOtf( tmpOTF, -kx,-ky, -1. );
-	    tmpN.times( tmpOTF );
 	    accOTF.add( tmpOTF );
+	    createOtf( tmpOTF, -kx,-ky, attFactor );
+	    accATT.add( tmpOTF );
+
+    	    tmpN.times( tmpOTF );
 
 	    // paste into full result
 	    fullResult.paste( tmpP ,0,0);
 	    fullResult.paste( tmpN ,0,0);
 	    logger("pasted angle "+ang+" band "+b+" ("+bIdx+","+cIdx+") at "+kx+" "+ky+" phase "
-		+(b*maxCorr[cIdx][3]));
+		+(b*maxCorr[ang][3]));
 	}
 
     }
 
     // Wiener filtering
+	
+
     for ( var i=0; i<fullResult.length; i++) {
-	var d = 1/( Math.pow( accOTF.data[2*i], 2) + .05 );
+	// accOTF holds the OTF w/o attenuation
+	// accATT holds the OTF multiplied by attenuation
+	// so the product it OTF^2 * ATT as required
+	var d = 1/(  accOTF.data[2*i] * accATT.data[2*i] + 0.5 );
 	fullResult.data[2*i+0] *= d;
 	fullResult.data[2*i+1] *= d;
     }
@@ -417,7 +446,7 @@ function createOtf( vec, kx=0, ky=0, att=-1, coShift=1 ) {
 	    var val  = valOtf( dist/cutoffPxl );
 
 	    if ( att>0 && (dist/cutoffPxl) < 1 ) {
-		val *= 1.0-Math.exp( -(dist/cutoffPxl/att));
+		val *= 1.0-0.99*Math.exp( -(dist/cutoffPxl/att));
 	    }
 
 	    vec.data[(x+y*vec.size)*2+0] = val;
@@ -473,7 +502,7 @@ function updateOtfImage( pos ) {
     var otfVec = new Vec2dCplx( imageSize );
     var data = fftData.data;
 
-    createOtf( otfVec , 0, 0, .1 );
+    createOtf( otfVec , 0, 0, attFactor );
     var otfImg = otfVec.getImg(true,false);
     
     for ( var i = 0 ; i<data.length/4; i++) {
@@ -496,10 +525,8 @@ function updateOtfImage( pos ) {
 	var otfVec = new Vec2dCplx( imageSize*2 );
 	var data = fftData.data;
     
-	var xo =  maxCorr[pos][0];
-	var yo =  maxCorr[pos][1];
-	//var xo = (x<imageSize/2)?(x):(imageSize-x);
-	//var yo = (y<imageSize/2)?(y):(imageSize-y);
+	var xo =  maxCorr[Math.floor(pos/2)][0] * (1+pos%2);
+	var yo =  maxCorr[Math.floor(pos/2)][1] * (1+pos%2);
 
     	createOtf( otfVec , xo, yo, .1 );
 	var otfImg1 = otfVec.getImg(true,false);
@@ -547,8 +574,10 @@ function updateCorrelationImage( pos ) {
 	data[i*4+3] = 0xFF;
     } 
 
+    const b = 1 + (pos%2);
+    const ang  = Math.floor(pos/2);
 
-    if ( pos%2 ==1 ) {
+    if ( b ==2 ) {
 	
 	for ( var iter=0; iter<2; iter++) {
 	    var bpos = Math.floor(pos/2)*2 +iter;
@@ -572,10 +601,11 @@ function updateCorrelationImage( pos ) {
 
     ctx.putImageData( fftData,0,0);
 
+    logger("displ: ang "+ang+"  band "+b);
 
     ctx.beginPath();
-    var xo =  maxCorr[pos][0]+imageSize/2;
-    var yo =  maxCorr[pos][1]+imageSize/2;
+    var xo =  maxCorr[ang][0]*b+imageSize/2;
+    var yo =  maxCorr[ang][1]*b+imageSize/2;
     ctx.stokeStyle = '#ff4400';
     ctx.arc( xo, yo, 4, 0, Math.PI*2);
     if ( pos%2 ==1 ) {
