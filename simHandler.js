@@ -712,9 +712,11 @@ function updateResultImage(slMin=-1, slMax=100) {
         for ( var x = 0 ; x<fullResult.size; x++) {
 	    var io  = x + y * imgCnv.width;
 	    var ii  = x + y * fullResult.size;
-	    data[io*4+0] = (resData[2*ii]-min)*scal ;
-	    data[io*4+1] = (resData[2*ii]-min)*scal ;
-	    data[io*4+2] = (resData[2*ii]-min)*scal ;
+	    var val = (resData[2*ii]-min)*scal ;
+	    if (val<0) val = 0;
+	    data[io*4+0] = val;
+	    data[io*4+1] = val;
+	    data[io*4+2] = val;
 	    data[io*4+3] = 0xFF;
 	    dataFFT[io*4+0] = resFFT[ii]*255;
 	    dataFFT[io*4+1] = resFFT[ii]*255;
