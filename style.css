@@ -146,6 +146,19 @@ h1 {
     left:10px;
 }
 
+#switchWidefieldButton {
+    position: absolute;
+    top:980px;
+    right:10px;
+}
+
+#resultCanvas {
+    border: 1px solid lightgrey;
+}
+#resultCanvasFFT {
+    border: 1px solid lightgrey;
+}
+
 
 
 #resMaxSlider {

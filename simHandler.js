@@ -1,5 +1,57 @@
-function logger(text) {
+/*
+This file is part of Free Analysis and Interactive Reconstruction
+for Structured Illumination Microscopy in JavaScript (fairSIM-js).
 
+fairSIM-js is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+fairSIM-js is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with fairSIM-js.  If not, see <http://www.gnu.org/licenses/>
+*/
+
+// A fun project, trying to get a simple 2D SIM reconstruction
+// to run in the browser, completely in JavaScript
+// See the README, this is not meant for productive use
+
+
+// SIM parameters and results
+// these can be overridden by the HTML interface
+var maxAng = 3;		    // number of angles
+var maxPha = 5;		    // number of phases 
+
+var objNA=1.4;		    // effective NA, for estimating an OTF
+var emLambda=525;	    // emission wavelength
+var attFactor = 0.4;	    // factor for OTF attenuation (in fraction of OTF cutoff, useful range 0..0.4, maybe)
+
+var imageSize = 512;	    // image size, in pxl (currently fixed at 512 !)
+var pxlSize   = 0.08;	    // physical size of proj. pixel, in micron
+
+var tiffPages   = null;	    // holds images once file is read
+var inputFFTimg = null;	    // holds fft'd images once imported (as Vec2dCplx)
+var bandImg	= null;	    // holds fft'd, separated SIM bands once imported (as Vec2dCplx)
+
+var corrImg	= null;	    // holds the correlated bands (after correlation is computed)
+var corrSubPxl  = null;	    // holds the subpixel data of the correlation
+var maxCorr	= null;
+
+var zImported   = -1;	    // holds which z-plane has been imported
+var fullResult  = null;	    // holds the full SIM reconstruction (after reconstruction is computed)
+var fullResultFFT  = null;  // holds the fft'd version of the reconstruction
+var fullResultWidefield	    = null;  // holds the widefield
+var fullResultWidefieldFFT  = null;  // holds the fft'd widefield
+
+var showOtfInInput = false; // toggled if the OTFs are shown
+var showWidefield  = false;
+
+// some code to easily write to the js console
+function logger(text) {
     console.log("fairSIM-js: "+text);
     document.getElementById("fairsimlogger").style.visibility = 'hidden';
     document.getElementById("fairsimlogger").innerHTML = "<pre>"+text+"<pre>";
@@ -7,30 +59,7 @@ function logger(text) {
 }
 
 
-var maxAng = 3;
-var maxPha = 5;
-
-var objNA=1.4;
-var emLambda=525;
-var attFactor = 0.4;
-
-var imageSize = 512;
-var pxlSize   = 0.08;
-
-var tiffPages   = null;
-var inputFFTimg = null;
-var bandImg	= null;
-
-var corrImg	= null;
-var corrSubPxl  = null;
-var maxCorr	= null;
-
-var zImported   = -1;
-var fullResult  = null;
-var fullResultFFT  = null;
-
-var showOtfInInput = false;
-
+// called to update the raw input image display
 function setImage(pos) {
 
     if (tiffPages==null) {
@@ -299,7 +328,8 @@ function computeReconstruction() {
     } 
 
     const bands = (maxPha+1)/2;
-    fullResult = new Vec2dCplx( 2*imageSize );
+    fullResult		= new Vec2dCplx( 2*imageSize );
+    fullResultWidefield = new Vec2dCplx( 2*imageSize );
 
     // sum up std. OTF
     var accOTF = new Vec2dCplx( imageSize *2 );
@@ -320,6 +350,9 @@ function computeReconstruction() {
 	
 	var tmpZ   = new Vec2dCplx( imageSize *2 );
 	tmpZ.paste( bandImg[ang*bands],0,0 );
+	// save a widefield before multiplying an OTF to it
+	fullResultWidefield.paste( tmpZ, 0, 0 );
+	
 	tmpZ.mult(.5,0.);
 	tmpZ.times( tmpOTF );
 	
@@ -394,8 +427,6 @@ function computeReconstruction() {
     }
 
     // Wiener filtering
-	
-
     for ( var i=0; i<fullResult.length; i++) {
 	// accOTF holds the OTF w/o attenuation
 	// accATT holds the OTF multiplied by attenuation
@@ -412,6 +443,11 @@ function computeReconstruction() {
     fullResultFFT = fullResult.duplicate();
     fullResult.fft2d(true);
 
+
+    // widefield
+    maskOtf( fullResultWidefield );
+    fullResultWidefieldFFT = fullResultWidefield.duplicate();
+    fullResultWidefield.fft2d(true);
 
     logger("SIM reconstruction complete");
 
@@ -432,6 +468,7 @@ function valOtf( dist ) {
 }
 
 
+// create a simple, 2D OTF
 function createOtf( vec, kx=0, ky=0, att=-1, coShift=1 ) {
 
     const cyclPxl   =  1./(imageSize*pxlSize);
@@ -461,6 +498,37 @@ function createOtf( vec, kx=0, ky=0, att=-1, coShift=1 ) {
     }
 
 }
+
+
+// cut out regions beyond OTF support
+function maskOtf( vec , coShift = 1.) {
+
+    const cyclPxl   =  1./(imageSize*pxlSize);
+    const cutoff    =  ((2*objNA)/(emLambda/1000.))*coShift;
+    const cutoffPxl =  cutoff/cyclPxl;
+
+    for (var y=0; y<vec.size; y++) {
+	for (var x=0; x<vec.size; x++) {
+
+	    var xh = ((x<vec.size/2)?( x):(x-vec.size)) ;
+	    var yh = ((y<vec.size/2)?( y):(y-vec.size)) ;
+	    var dist = Math.sqrt( xh*xh+yh*yh );
+
+	    if ( (dist/cutoffPxl) >1.1) {
+		vec.data[(x+y*vec.size)*2+0] = 0.0;
+		vec.data[(x+y*vec.size)*2+1] = 0.0;
+	    } else if ( (dist/cutoffPxl) >1 ) {
+		var d2 = ((dist/cutoffPxl) -1.)*10.;
+		var v  = .5*(1+Math.cos(Math.PI*d2));
+		vec.data[(x+y*vec.size)*2+0] *= v;
+		vec.data[(x+y*vec.size)*2+1] *= v;
+	    }
+	}
+    }
+
+}
+
+
 
 
 
@@ -680,8 +748,10 @@ function updateResultImage(slMin=-1, slMax=100) {
     }
 
     //logger("Updating image: "+slMax);
+    var whatToDisplay = ( showWidefield )?(fullResultWidefield):(fullResult);
+    var whatToDisplayFFT = ( showWidefield )?(fullResultWidefieldFFT):(fullResultFFT);
 
-    var minMax = fullResult.getRealMinMax();
+    var minMax = whatToDisplay.getRealMinMax();
     //var scal = 255./(minMax[1]-minMax[0]);
     var scal,min,max;
     if (slMin==-1){
@@ -697,12 +767,12 @@ function updateResultImage(slMin=-1, slMax=100) {
     var imgCnv = document.getElementById("resultCanvas");
     var ctx = imgCnv.getContext("2d");
     var imgData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    var resData  = fullResult.data;
+    var resData  = whatToDisplay.data;
     
     var fftCnv = document.getElementById("resultCanvasFFT");
     var ctf = fftCnv.getContext("2d");
     var fftData = ctf.getImageData(0,0,imgCnv.width, imgCnv.height);
-    var resFFT   = fullResultFFT.getImg(true,true);
+    var resFFT   = whatToDisplayFFT.getImg(true,true);
 
 
 
