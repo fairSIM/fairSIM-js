@@ -5,11 +5,16 @@
 
 <link rel="stylesheet" type="text/css" href="./style.css" />
 
-<script src="simHandler.js" ></script>
-<script src="fileLoader.js" ></script>
-<script src="Vec2dCplx.js" ></script>
-<script src="fft-runner.js" ></script>
-<script src="tiff-decoder.js"></script>
+<!-- to hande TIFF files -->
+<script src="./fileLoader.js" ></script>
+<script src="./tiff-decoder.js" ></script>
+
+<script src="./fft-runner.js"></script>
+<script src="./Vec2dCplx.js"></script>
+
+<!-- to run the actual reconstruction -->
+<script src="./simController.js" ></script>
+
 
 <title>fairSIM-js</title>
 </head>
@@ -46,7 +51,8 @@ raw images:<br/>
 <canvas id="corrCanvas" width="512" height="512"></canvas><br />
 <button id="runCorrButton" onclick="computeCorrImages()">compute correlation</button>
 <!-- <button id="setCorrButton" onclick="setFixedParameters()">set default</button> -->
-<input id="corrSlider"  value="0" min="0" max="5" step="1" type="range" oninput="updateCorrelationImage(this.value)" >
+<input id="corrSlider"  value="0" min="0" max="5" step="1" type="range" 
+    oninput="updateCorrelationImageDisplay()" >
 </div>
 
 <div id="image-control">
@@ -79,21 +85,24 @@ raw images:<br/>
 
 <div id="image-result">
 <input id="resMaxSlider"  value="100" min="0" max="100" step="1" type="range" 
-oninput="updateResultImage(resMinSlider.value, resMaxSlider.value)" >
+oninput="updateResultImageDisplay()" >
 <input id="resMinSlider"  value="-1" min="-1" max="100" step="1" type="range" 
-oninput="updateResultImage(resMinSlider.value, resMaxSlider.value)" >
+oninput="updateResultImageDisplay()" >
 <canvas id="resultCanvas" width="1024" height="1024"></canvas><br />
 <canvas id="resultCanvasFFT" width="1024" height="1024"></canvas><br />
 <button id="runResultButton" onclick="computeReconstruction()">compute reconstruction</button>
 <!-- <input id="corrSlider"  value="0" min="0" max="5" step="1" type="range" oninput="updateCorrelationImage(this.value)" > -->
 <button id="switchWidefieldButton" 
-onclick="showWidefield=!showWidefield; updateResultImage(resMinSlider.value, resMaxSlider.value);">toggle widefield</button>
+onclick="showWidefield=!showWidefield; updateResultImageDisplay();">toggle widefield</button>
 </div>
 
 
 
 <div id="fairsimlogger">
-<pre>status: ready</pre>
+<pre>JavaScript not loaded</pre>
+</div>
+<div id="fairsimprogress" >
+<pre>...</pre>
 </div>
 
 <pre>uses <a href="https://github.com/Quramy/decode-tiff">Quramy/decode-tiff</a> and <a href="https://github.com/jensnockert/fft.js">jensnockert/fft.js</a></pre>

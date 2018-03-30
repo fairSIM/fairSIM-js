@@ -26,7 +26,7 @@ function updateProgress(evt) {
     if (loaded <= 1) {
       // Increase the prog bar length
     	//document.getElementById("status").innerHTML=Number.parseFloat(loaded*100).toFixed(2);
-	logger( "loading: "+Number.parseFloat(loaded*100).toFixed(2));
+	showStatus( "Loading TIFF ",Number.parseFloat(loaded*90).toFixed(2));
     }
   }
 }
@@ -35,7 +35,7 @@ function updateProgress(evt) {
 function loaded(evt) {
 
     //document.getElementById("status").innerHTML="100% done, decoding TIFF";	
-    logger("done, decoding TIFF");    
+    showStatus("done, decoding TIFF",.9);    
 
     // decode tiff
     //tiffPages = decode( reader.result, false, true );
@@ -47,13 +47,13 @@ function loaded(evt) {
     document.getElementById("sSlider").max = 14;
     //document.getElementById("status").innerHTML="100% done, TIFF decoded";	
     
-    logger("loaded tiff: "+tiffPages.length+" slices @"
-	+tiffPages[0].width+"x"+tiffPages[0].height);
+    showStatus("loaded tiff: "+tiffPages.length+" slices @"
+	+tiffPages[0].width+"x"+tiffPages[0].height,1);
 }
 
 function errorHandler(evt) {
   if(evt.target.error.name == "NotReadableError") {
-	logger("File load error");  
+	showStatus("File load error",-1);  
     }
 }
 
@@ -73,8 +73,8 @@ function downloadExample() {
 	    document.getElementById("sSlider").max = 14;
 	    //document.getElementById("status").innerHTML="100% done, TIFF decoded";	
 	    
-	    logger("loaded tiff: "+tiffPages.length+" slices @"
-		+tiffPages[0].width+"x"+tiffPages[0].height);
+	    showStatus("Dowloaded tiff: "+tiffPages.length+" slices @"
+		+tiffPages[0].width+"x"+tiffPages[0].height,1);
 
 	}
     }

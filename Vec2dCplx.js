@@ -16,6 +16,22 @@ You should have received a copy of the GNU General Public License
 along with fairSIM-js.  If not, see <http://www.gnu.org/licenses/>
 */
 
+
+function valOtf( dist ) {
+    if ((dist<0)||(dist>=1))
+	return 0.0;
+    if (dist == 1 )
+	return 1.0;
+    return (2/Math.PI)*(Math.acos(dist) - dist*Math.sqrt(1-dist*dist));
+}
+
+function OtfVals() {
+    this.objNA = 1.4;
+    this.emLambda = 525;
+    this.pxlSize = 0.08; 
+    this.attFactor = 0.4;
+}
+
 class Vec2dCplx {
 
     constructor( size ) {
@@ -322,6 +338,9 @@ class Vec2dCplx {
 
 
 
+
+
+
     // TODO: this should be the same as copyMirrored(), but on an existing
     // vector. However, it isn't, and I am too lazy to debug this now
 
@@ -489,7 +508,7 @@ class Vec2dCplx {
 	var si = Math.sin(pha);
 	var co = Math.cos(pha);
 
-	logger("multiplying phase: "+pha);
+	//logger("multiplying phase: "+pha);
 
 	for (var i=0; i<this.length; i++) {
 	    var r1 = this.data[ i*2 + 0 ];	    
@@ -535,6 +554,68 @@ class Vec2dCplx {
 
 	}
     }
+
+    // create a simple, 2D OTF
+    createOtf( otfData , kx=0, ky=0, att=-1, coShift=1 ) {
+
+	const cyclPxl   =  1./(this.size*otfData.pxlSize);
+	const cutoff    =  ((2*otfData.objNA)/(otfData.emLambda/1000.))*coShift;
+	const cutoffPxl =  cutoff/cyclPxl;
+
+	for (var y=0; y<this.size; y++) {
+	    for (var x=0; x<this.size; x++) {
+
+		var xi = x + kx;
+		var yi = y + ky;
+
+		var xh = ((xi<this.size/2)?( xi):(xi-this.size)) ;
+		var yh = ((yi<this.size/2)?( yi):(yi-this.size)) ;
+
+		var dist = Math.sqrt( xh*xh+yh*yh );
+		var val  = valOtf( dist/cutoffPxl );
+
+		if ( att>0 && (dist/cutoffPxl) < 1 ) {
+		    val *= 1.0-0.99*Math.exp( -(dist/cutoffPxl/att));
+		}
+
+		this.data[(x+y*this.size)*2+0] = val;
+		this.data[(x+y*this.size)*2+1] = 0.0;
+
+	    }
+	}
+
+    }
+
+
+    // cut out regions beyond OTF support
+    maskOtf( otfData , coShift = 1.) {
+
+	const cyclPxl   =  1./(imageSize*pxlSize);
+	const cutoff    =  ((2*otfData.objNA)/(otfData.emLambda/1000.))*coShift;
+	const cutoffPxl =  cutoff/cyclPxl;
+
+	for (var y=0; y<vec.size; y++) {
+	    for (var x=0; x<vec.size; x++) {
+
+		var xh = ((x<this.size/2)?( x):(x-this.size)) ;
+		var yh = ((y<this.size/2)?( y):(y-this.size)) ;
+		var dist = Math.sqrt( xh*xh+yh*yh );
+
+		if ( (dist/cutoffPxl) >1.1) {
+		    this.data[(x+y*this.size)*2+0] = 0.0;
+		    this.data[(x+y*this.size)*2+1] = 0.0;
+		} else if ( (dist/cutoffPxl) >1 ) {
+		    var d2 = ((dist/cutoffPxl) -1.)*10.;
+		    var v  = .5*(1+Math.cos(Math.PI*d2));
+		    this.data[(x+y*this.size)*2+0] *= v;
+		    this.data[(x+y*this.size)*2+1] *= v;
+		}
+	    }
+	}
+
+    }
+
+
 
 }
 

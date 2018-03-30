@@ -16,13 +16,18 @@ You should have received a copy of the GNU General Public License
 along with fairSIM-js.  If not, see <http://www.gnu.org/licenses/>
 */
 
-// A fun project, trying to get a simple 2D SIM reconstruction
-// to run in the browser, completely in JavaScript
-// See the README, this is not meant for productive use
+/* A fun project, trying to get a simple 2D SIM reconstruction
+   to run in the browser, completely in JavaScript
+   See the README, this is not meant for productive use. */
+
+// This file runs the actual reconstruction, it is used by
+// 'simController.js' as a WebWorker
+
+importScripts('./Vec2dCplx.js','./fft-runner.js');
 
 
 // SIM parameters and results
-// these can be overridden by the HTML interface
+
 var maxAng = 3;		    // number of angles
 var maxPha = 5;		    // number of phases 
 
@@ -33,7 +38,6 @@ var attFactor = 0.4;	    // factor for OTF attenuation (in fraction of OTF cutof
 var imageSize = 512;	    // image size, in pxl (currently fixed at 512 !)
 var pxlSize   = 0.08;	    // physical size of proj. pixel, in micron
 
-var tiffPages   = null;	    // holds images once file is read
 var inputFFTimg = null;	    // holds fft'd images once imported (as Vec2dCplx)
 var bandImg	= null;	    // holds fft'd, separated SIM bands once imported (as Vec2dCplx)
 
@@ -53,104 +57,66 @@ var showWidefield  = false;
 // some code to easily write to the js console
 function logger(text) {
     console.log("fairSIM-js: "+text);
-    document.getElementById("fairsimlogger").style.visibility = 'hidden';
-    document.getElementById("fairsimlogger").innerHTML = "<pre>"+text+"<pre>";
-    document.getElementById("fairsimlogger").style.visibility = 'visible';
+}
+
+// this allows to provide progress feedback and such easily
+function showStatus( text=null, progress =null) {
+    postMessage( [ 'status', text, progress ] );
 }
 
 
-// called to update the raw input image display
-function setImage(pos) {
 
-    if (tiffPages==null) {
-	logger("open a TIFF first");
-	return;
-    }
+// this get called for communication with the worker
+onmessage = function(e) {
 
-    var phaAng =  document.getElementById("sSlider").value; 
+    var what = e.data[0];
 
-    var imgCnv = document.getElementById("rawCanvas");
-    var ctx = imgCnv.getContext("2d");
-    var imgData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    
-    var data = imgData.data;
+    // import images
+    if (what=='import') {
 
-    var pha = phaAng%5;
-    var ang = Math.floor(phaAng/5);
+	var inputPWspec = [];
 
-    logger("ang: "+ang+" pha: "+pha+" z: "+pos);
+	inputFFTimg = [];
+	bandImg     = [];
+	const bands = (maxPha+1)/2;
 
-    var max=0;
-    for ( var i = 0; i<data.length; i++) {
-	var val = tiffPages[ pos*maxPha + pha + ang*(tiffPages.length/maxAng)  ].data[i];
-	if (val>max) max=val;
-    }
-    max = 255./max;    
-
-
-    for ( var i = 0 ; i<data.length/4; i++) {
-	data[i*4+0] = tiffPages[ pos*maxPha + pha + ang*(tiffPages.length/maxAng)  ].data[i] *max;
-	data[i*4+1] = data[i*4];
-	data[i*4+2] = data[i*4];
-	data[i*4+3] = 0xFF; 
-    }
-    ctx.putImageData( imgData,0,0);
-    
-    if ( pos == zImported ) {
-	updateFFTimage(phaAng);
-    }
-}
-
-// imports the images
-function importImages() {
-    if (tiffPages==null) {
-	logger("Open a tiff first");
-	return;
-    }
-    
-    var z =  document.getElementById("zSlider").value; 
-    zImported = z;   
- 
-    inputFFTimg = [];
-    bandImg     = [];
-    
-    const bands = (maxPha+1)/2;
-
-    for (var ang = 0 ; ang < maxAng ; ang++ ) {
+	for (var ang = 0 ; ang < maxAng ; ang++ ) {
+	    for (var pha = 0 ; pha < maxPha ; pha++ ) {
 	
-	// copy input data
-	for (var pha = 0 ; pha < maxPha ; pha++ ) {
-	    var pos   = z*maxPha + pha + ang*(tiffPages.length/maxAng);
-	    var fftIn = new Vec2dCplx( tiffPages[ pos  ].width );
-	    fftIn.setFromTiff( tiffPages[ pos ].data );
-	    fftIn.applyWindow(20);
-	    inputFFTimg.push( fftIn );
-	}
+		var pos   = ang*maxPha + pha;
+		var fftIn = new Vec2dCplx( imageSize );
+		fftIn.setFromTiff( e.data[1][pos] );
+		fftIn.applyWindow(20);
+		fftIn.fft2d(false);
+		inputFFTimg.push( fftIn );
 	    
-	// fft input image
-	for (var pha = 0 ; pha < maxPha ; pha++ ) {
-	    inputFFTimg[ pha+ang*maxPha].fft2d(false);
-
-	    /*
-    	    // used to cross-check fft(k) = fft*(-k)
-	    var tmp = inputFFTimg[ pha+ang*maxPha].duplicateMirrored();
-	    tmp.conj();
-	    logger("diff: "+tmp.comp( inputFFTimg[ pha+ang*maxPha] ));
-	    tmp.mult(-1.,0.);    
-	    inputFFTimg[ pha+ang*maxPha].add(tmp);
-	    */
-	} 
+		inputPWspec.push( fftIn.getImg());
+   
+		showStatus("fft'in input images", pos/(maxAng*maxPha*1.)); 
+	    }
 	
-	// band-separate 
-	tmp = bandSeparate( inputFFTimg, ang*maxPha );
-	for (var b=0; b<bands; b++) {
-	    bandImg.push(tmp[b]);
-	}
+	    // band-separate 
+	    var tmp = bandSeparate( inputFFTimg, ang*maxPha );
+	    for (var b=0; b<bands; b++) {
+		bandImg.push(tmp[b]);
+	    }
+	} 
+    
+	showStatus("Images imported",1);
+	postMessage(['importComplete', inputPWspec ] );
 
     }
 
-    updateFFTimage(document.getElementById("sSlider").value);
-    logger("slice "+z+" imported");
+    // compute the correlation
+    if (what=='computeCorrelation') {
+	computeCorrImages();
+    }
+    
+    // compute the reconstruction
+    if (what=='computeReconstruction') {
+	computeReconstruction();
+    }
+
 }
 
 // called by 'importImages()', calculates a (very basic)
@@ -207,7 +173,7 @@ function computeCorrImages( minDist = 100 ) {
     var bands = (maxPha+1)/2;
 
     if (bandImg == null || bandImg.length != bands*maxAng ) {
-	logger("import some images first..." );
+	showStatus("import some images first...",-1 );
 	return;
     }
 
@@ -218,6 +184,8 @@ function computeCorrImages( minDist = 100 ) {
     var otf = new Vec2dCplx(imageSize);
     createOtf( otf,0,0,.1); 
 
+    showStatus("Fitting SIM parameters..",0);
+    
     for (var ang = 0 ; ang < maxAng ; ang++ ) {
 
 	var bZero = bandImg[ ang*bands ].duplicate();
@@ -226,17 +194,18 @@ function computeCorrImages( minDist = 100 ) {
 
 	for ( var b=1; b<bands; b++) {
 
-	    var c = bandImg[ (b +ang*bands ) ].duplicate();
+	    var cImg = bandImg[ (b +ang*bands ) ].duplicate();
 
 	    //c.times(otf);
-    	    c.times(otf);
-	    c.fft2d(true);
-	    c.times( bZero );
-	    c.fft2d(false);
-	    corrImg.push(c);
+    	    cImg.times(otf);
+	    cImg.fft2d(true);
+	    cImg.times( bZero );
+	    cImg.fft2d(false);
     
 	    // find the brightest pixel
-	    var max = c.findMax(60*b);
+	    var max = cImg.findMax(60*b);
+	    
+	    corrImg.push(cImg.getImg());
 
 	    // do a subpixel-precision fit
 	    if ( b==2) {
@@ -253,22 +222,23 @@ function computeCorrImages( minDist = 100 ) {
 		    
 		    var maxX=0, maxY=0;
 		    var spTmp = [], maxValue=0, minValue = Number.MAX_VALUE;
-		    logger( "Fitting angle "+ang+", iteration "+iter);
 
-		    for ( var x=0; x<8; x++ )
-		    for ( var y=0; y<8; y++ ) {
-			var kx = max[0] + ((x-3.5)/3.5)*((iter==0)?(2):(0.5));
-			var ky = max[1] + ((y-3.5)/3.5)*((iter==0)?(2):(0.5));
-			var corr = bZero.crossCorrelate( bHigh, kx,ky);
-			if ( corr[2] > maxValue ) {
-			    maxValue = corr[2];
-			    maxX = kx;
-			    maxY = ky;
-			}
-			if ( corr[2] < minValue ) {
-			    minValue = corr[2];
-			}
-			spTmp.push( corr );
+		    for ( var x=0; x<8; x++ ) {
+			for ( var y=0; y<8; y++ ) {
+			    var kx = max[0] + ((x-3.5)/3.5)*((iter==0)?(2):(0.5));
+			    var ky = max[1] + ((y-3.5)/3.5)*((iter==0)?(2):(0.5));
+			    var corr = bZero.crossCorrelate( bHigh, kx,ky);
+			    if ( corr[2] > maxValue ) {
+				maxValue = corr[2];
+				maxX = kx;
+				maxY = ky;
+			    }
+			    if ( corr[2] < minValue ) {
+				minValue = corr[2];
+			    }
+			    spTmp.push( corr );
+			}	
+			showStatus(null, ((ang*128 + iter*64 + x*8)/(128.*maxAng)));
 		    }
 
 		    for ( var i=0; i<64; i++) {
@@ -296,7 +266,9 @@ function computeCorrImages( minDist = 100 ) {
 
 
 		max[3] = -Math.atan2( valMagPha[1], valMagPha[0]);
-		logger("paramFit: "+ang+" "+b+" -> "+max[0]+" "+max[1]+" pha "+max[3]);
+		showStatus(("Fit: ang "+ang+" band "+b+" -> "+
+		    " kx "+max[0].toFixed(2)+
+		    " ky "+max[1].toFixed(2)+" pha "+max[3].toFixed(3)), null);
  
 		maxCorr.push( max );
 	    }
@@ -304,9 +276,10 @@ function computeCorrImages( minDist = 100 ) {
 	}
     }    
     
-    logger("SIM parameters computed");
+    postMessage(['correlationComplete', corrImg, corrSubPxl, maxCorr ]); 
+    showStatus("SIM parameters computed",1);
+    
 
-    updateCorrelationImage(document.getElementById("corrSlider").value);
 }
 
 function setFixedParameters() {
@@ -323,10 +296,12 @@ function computeReconstruction() {
 
     
     if ( maxCorr == null || maxCorr.length == 0 ) {
-	logger("please run the correlation estimation first");
+	showStatus("Please run the correlation estimation first",-1);
 	return;
     } 
 
+    showStatus("Reconstruction: starting",0);
+    
     const bands = (maxPha+1)/2;
     fullResult		= new Vec2dCplx( 2*imageSize );
     fullResultWidefield = new Vec2dCplx( 2*imageSize );
@@ -361,6 +336,8 @@ function computeReconstruction() {
 	
 	// for all bands
 	for ( var b=1; b<bands; b++) {
+	    
+	    showStatus("Reconstruction: ang "+ang+" band "+b, (ang*bands+b)*.9/(maxAng*bands));
 	    
 	    // multiply input w. otf
 	    var bIdx = ang*bands+b;
@@ -420,11 +397,13 @@ function computeReconstruction() {
 	    // paste into full result
 	    fullResult.paste( tmpP ,0,0);
 	    fullResult.paste( tmpN ,0,0);
-	    logger("pasted angle "+ang+" band "+b+" ("+bIdx+","+cIdx+") at "+kx+" "+ky+" phase "
-		+(b*maxCorr[ang][3]));
+	    //logger("pasted angle "+ang+" band "+b+" ("+bIdx+","+cIdx+") at "+kx+" "+ky+" phase "
+	    //	+(b*maxCorr[ang][3]));
 	}
 
     }
+    
+    showStatus("Reconstruction: computing filters", 0.95);
 
     // Wiener filtering
     for ( var i=0; i<fullResult.length; i++) {
@@ -449,11 +428,12 @@ function computeReconstruction() {
     fullResultWidefieldFFT = fullResultWidefield.duplicate();
     fullResultWidefield.fft2d(true);
 
-    logger("SIM reconstruction complete");
-
-	updateResultImage(
-	    document.getElementById("resMinSlider").value, 
-	    document.getElementById("resMaxSlider").value);
+    postMessage( ['reconstructionComplete', 
+	fullResult.getImg(false,false), 
+	fullResultFFT.getImg(), 
+	fullResultWidefield.getImg(false,false),
+	fullResultWidefieldFFT.getImg() ] );
+    showStatus("Reconstruction: done",1);
 
 
 }
