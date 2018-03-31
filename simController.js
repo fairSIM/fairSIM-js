@@ -45,8 +45,8 @@ var fullResultWidefield	    = null;  // holds the widefield
 var fullResultWidefieldFFT  = null;  // holds the fft'd widefield
 
 var showOtfInInput = false; // toggled if the OTFs are shown
-var showWidefield  = false;
-
+var showWidefield  = false; // if widefield is shown or reconstruction
+var shwOtfOutline  = false; // if the OTFs are shown as outlines in the result spectrum
 
 
 // The worker running the actual reconstruction
@@ -440,12 +440,42 @@ function updateResultImageDisplay() {
 	}
     } 
 
+
+    const cutoffPxl    =  ((2*contrOtfVals.objNA)/(contrOtfVals.emLambda/1000.)/contrOtfVals.pxlSize);
+    
+    const bands = (maxPha+1)/2;
+    
     ctx.putImageData( imgData,0,0);
     ctf.putImageData( fftData,0,0);
+    
     ctf.beginPath();
-    ctf.stokeStyle = '#ff4400ff';
+    ctf.strokeStyle = '#ff4400';
     ctf.arc( 512, 512, 10, 0, Math.PI*2);
     ctf.stroke();
 
+    if (showOtfOutline == true) {    
+	// widefield
+	ctf.beginPath();
+	ctf.strokeStyle = '#aa4400';
+	ctf.arc( 512, 512, cutoffPxl, 0, Math.PI*2);
+	ctf.stroke();
+	
+	// sim otfs
+	for (var ang=0; ang<maxAng; ang++) {
+	    for (var b=1; b<bands; b++) {
+		if (b==1) {
+		    ctf.strokeStyle = '#0044aa';
+		} else {
+		    ctf.strokeStyle = '#00aa44';
+		}
 
+		ctf.beginPath();
+		ctf.arc( 512-maxCorr[ang][0]*b, 512-maxCorr[ang][1]*b, cutoffPxl, 0, Math.PI*2);
+		ctf.stroke();
+		ctf.beginPath();
+		ctf.arc( 512+maxCorr[ang][0]*b, 512+maxCorr[ang][1]*b, cutoffPxl, 0, Math.PI*2);
+		ctf.stroke();
+	    }	
+	}
+    }
 }

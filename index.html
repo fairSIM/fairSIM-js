@@ -80,7 +80,10 @@ raw images:<br/>
 <hr />
 <button id="updateOtfButton" onclick="toggleOtfImage(true)">show/update OTF display</button>
 <button id="hideOtfButton" onclick="toggleOtfImage(false)">hidde OTF display</button>
-
+<hr />
+<label class="switch" for="inp_showOtfOutline">Show OTF outlines in result?</label>
+<input id="inp_showOtfOutline" type="checkbox" checked="false" 
+    oninput="showOtfOutline=this.checked; updateResultImageDisplay();"/>
 
 </div>
 </div>
