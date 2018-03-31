@@ -30,7 +30,7 @@ var maxPha	= 5;	    // number of angles
 var maxAng	= 3;	    // number of phases
 var imageSize	= 512;	    // width and height of input images
 
-var otfVals	= new OtfVals();    // otf values
+var contrOtfVals	= new OtfVals();    // otf values
 
 var inputPWspec = null;	    // holds power spectra of the input images
 
@@ -199,6 +199,22 @@ function computeReconstruction() {
 }
 
 
+// when any of the OTF values change
+function updateOtfValues() {
+
+    contrOtfVals.objNA    = document.getElementById('inp_otfna').value;
+    contrOtfVals.emLambda = document.getElementById('inp_emwl').value;
+    
+    if ( document.getElementById('inp_attOnOff').checked ) {
+	contrOtfVals.attFactor= document.getElementById('inp_attval').value;
+    } else {
+	contrOtfVals.attFactor=-1;
+    } 
+
+    simWorker.postMessage(['newOtfValues', contrOtfVals]);
+
+}
+
 
 
 // set the display of power spectra
@@ -232,15 +248,17 @@ function toggleOtfImage( val  ) {
 	updateOtfImage(document.getElementById("corrSlider").value);
     } else {
 	updateInputImageDisplay();
-	updateResultImageDisplay(
-	    document.getElementById("resMinSlider").value, 
-	    document.getElementById("resMaxSlider").value);
+	updateResultImageDisplay();
     }
 }
 
 
 // computes the OTF displays
 function updateOtfImage( pos ) {
+
+    if (!showOtfInInput) {
+	return;
+    }
 
     const bands = (maxPha+1)/2;
     
@@ -251,7 +269,7 @@ function updateOtfImage( pos ) {
     var otfVec = new Vec2dCplx( imageSize );
     var data = fftData.data;
 
-    otfVec.createOtf( otfVals,0,0, otfVals.attFactor );
+    otfVec.createOtf( contrOtfVals,0,0, contrOtfVals.attFactor );
     var otfImg = otfVec.getImg(true,false);
     
     for ( var i = 0 ; i<data.length/4; i++) {
@@ -277,9 +295,9 @@ function updateOtfImage( pos ) {
 	var xo =  maxCorr[Math.floor(pos/2)][0] * (1+pos%2);
 	var yo =  maxCorr[Math.floor(pos/2)][1] * (1+pos%2);
 
-    	createOtf( otfVec , xo, yo, attFactor );
+    	otfVec.createOtf( contrOtfVals , xo, yo, contrOtfVals.attFactor );
 	var otfImg1 = otfVec.getImg(true,false);
-	createOtf( otfVec , 0, 0, attFactor );
+	otfVec.createOtf( contrOtfVals ,  0,  0, contrOtfVals.attFactor );
 	var otfImg0 = otfVec.getImg(true,false);
 	
 	for ( var i = 0 ; i<data.length/4; i++) {
@@ -305,7 +323,10 @@ function updateCorrelationImageDisplay( ) {
 	return;
     }
 
+
     var pos = document.getElementById("corrSlider").value;
+    
+    updateOtfImage(pos);
 
     var imgCnv = document.getElementById("corrCanvas");
     var ctx = imgCnv.getContext("2d");

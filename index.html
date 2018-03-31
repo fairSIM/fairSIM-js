@@ -60,18 +60,20 @@ raw images:<br/>
 <p>Settings</p>
 <hr />
 <label for="inp_otfna">OTF NA: </label>
-<input id="inp_otfna" type="number" value="1.4" min="0.4" max="1.7" step="0.05" oninput="objNA=inp_otfna.value"/>
+<input id="inp_otfna" type="number" value="1.4" min="0.4" max="1.7" step="0.05" 
+    oninput="updateOtfValues()"/>
 <br />
 <label for="inp_emwl">em. wavelength: </label>
-<input id="inp_emwl" type="number" value="525" min="400" max="680" step="10" oninput="emLambda=inp_emwl.value"/>
+<input id="inp_emwl" type="number" value="525" min="400" max="680" step="5" 
+    oninput="updateOtfValues()"/>
 <br />
 <hr />
 <label class="switch" for="inp_attOnOff">Attenuate OTF?</label>
 <input id="inp_attOnOff" type="checkbox" checked="true"
-    onclick="attFactor=(inp_attOnOff.checked)?(inp_attval.value):(-1);" />
+    oninput="updateOtfValues()"/>
 <label for="inp_attFactor">Attenuation </label>
 <input id="inp_attval" type="number" value="0.4" min="0.05" max="0.9" step="0.05" 
-    oninput="attFactor=(inp_attOnOff.checked)?(inp_attval.value):(-1);" />
+    oninput="updateOtfValues()"/>
 <br />
 <hr />
 <button id="updateOtfButton" onclick="toggleOtfImage(true)">show/update OTF display</button>

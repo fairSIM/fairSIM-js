@@ -28,7 +28,7 @@ function valOtf( dist ) {
 function OtfVals() {
     this.objNA = 1.4;
     this.emLambda = 525;
-    this.pxlSize = 0.08; 
+    this.pxlSize = 1./(512*0.08); 
     this.attFactor = 0.4;
 }
 
@@ -458,13 +458,14 @@ class Vec2dCplx {
 	for ( var x=0 ; x<size ; x++ ) {
 
 	    var i = y*size + x;
-	    var r = Math.sqrt( data[i*2] * data[i*2] + data[i*2+1] * data[i*2+1]);
-	
+	    var r = 0.0;	   
+ 
 	    if ( compLog ) {
+		r = Math.sqrt( data[i*2] * data[i*2] + data[i*2+1] * data[i*2+1]);
 		r = (Math.log(r) - min)/(max-min);
 		if (isNaN(r) || r<0) r=0;
 	    } else {
-		//r = (r-min)/(max-min);
+		r = data[i*2];
 	    }
 	    
 	    if (swapQuadrand) {
@@ -558,7 +559,7 @@ class Vec2dCplx {
     // create a simple, 2D OTF
     createOtf( otfData , kx=0, ky=0, att=-1, coShift=1 ) {
 
-	const cyclPxl   =  1./(this.size*otfData.pxlSize);
+	const cyclPxl   =  otfData.pxlSize;
 	const cutoff    =  ((2*otfData.objNA)/(otfData.emLambda/1000.))*coShift;
 	const cutoffPxl =  cutoff/cyclPxl;
 
@@ -590,12 +591,12 @@ class Vec2dCplx {
     // cut out regions beyond OTF support
     maskOtf( otfData , coShift = 1.) {
 
-	const cyclPxl   =  1./(imageSize*pxlSize);
+	const cyclPxl   =  otfData.pxlSize;
 	const cutoff    =  ((2*otfData.objNA)/(otfData.emLambda/1000.))*coShift;
 	const cutoffPxl =  cutoff/cyclPxl;
 
-	for (var y=0; y<vec.size; y++) {
-	    for (var x=0; x<vec.size; x++) {
+	for (var y=0; y<this.size; y++) {
+	    for (var x=0; x<this.size; x++) {
 
 		var xh = ((x<this.size/2)?( x):(x-this.size)) ;
 		var yh = ((y<this.size/2)?( y):(y-this.size)) ;

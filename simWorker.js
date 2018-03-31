@@ -31,35 +31,29 @@ importScripts('./Vec2dCplx.js','./fft-runner.js');
 var maxAng = 3;		    // number of angles
 var maxPha = 5;		    // number of phases 
 
-var objNA=1.4;		    // effective NA, for estimating an OTF
-var emLambda=525;	    // emission wavelength
-var attFactor = 0.4;	    // factor for OTF attenuation (in fraction of OTF cutoff, useful range 0..0.4, maybe)
+var workerOtfVals = new OtfVals();
 
 var imageSize = 512;	    // image size, in pxl (currently fixed at 512 !)
-var pxlSize   = 0.08;	    // physical size of proj. pixel, in micron
 
 var inputFFTimg = null;	    // holds fft'd images once imported (as Vec2dCplx)
 var bandImg	= null;	    // holds fft'd, separated SIM bands once imported (as Vec2dCplx)
 
 var corrImg	= null;	    // holds the correlated bands (after correlation is computed)
 var corrSubPxl  = null;	    // holds the subpixel data of the correlation
-var maxCorr	= null;
+var maxCorr	= null;	    // holds position and phase of max. correlation -> k0-vectors
 
-var zImported   = -1;	    // holds which z-plane has been imported
 var fullResult  = null;	    // holds the full SIM reconstruction (after reconstruction is computed)
 var fullResultFFT  = null;  // holds the fft'd version of the reconstruction
 var fullResultWidefield	    = null;  // holds the widefield
 var fullResultWidefieldFFT  = null;  // holds the fft'd widefield
 
-var showOtfInInput = false; // toggled if the OTFs are shown
-var showWidefield  = false;
 
 // some code to easily write to the js console
 function logger(text) {
     console.log("fairSIM-js: "+text);
 }
 
-// this allows to provide progress feedback and such easily
+// this allows to provide progress feedback and status messages
 function showStatus( text=null, progress =null) {
     postMessage( [ 'status', text, progress ] );
 }
@@ -71,7 +65,7 @@ onmessage = function(e) {
 
     var what = e.data[0];
 
-    // import images
+    // import images: e.data[1] should contain all the images (typ. as Uint...)
     if (what=='import') {
 
 	var inputPWspec = [];
@@ -116,6 +110,18 @@ onmessage = function(e) {
     if (what=='computeReconstruction') {
 	computeReconstruction();
     }
+
+    // set new otf values: e.data[1] should contain an OtfVals object 
+    if (what=='newOtfValues' ) {
+	workerOtfVals = e.data[1];
+
+	var msg = "New OTF: NA "+workerOtfVals.objNA+" wl "+workerOtfVals.emLambda+" (att "+
+		    ((workerOtfVals.attFactor>0)?(workerOtfVals.attFactor):("off"))+")";
+	showStatus(msg);
+	logger(e.data[1].objNA);
+
+    }
+
 
 }
 
@@ -182,7 +188,7 @@ function computeCorrImages( minDist = 100 ) {
     maxCorr = [];
 
     var otf = new Vec2dCplx(imageSize);
-    createOtf( otf,0,0,.1); 
+    otf.createOtf(workerOtfVals, 0,0,.1); 
 
     showStatus("Fitting SIM parameters..",0);
     
@@ -312,16 +318,16 @@ function computeReconstruction() {
     // sum up att. OTF
     var accATT = new Vec2dCplx( imageSize *2 );
     
-    var tmpOTF = new Vec2dCplx( imageSize *2 );
+    var tmpOtf = new Vec2dCplx( imageSize *2 );
 
     // for all angles
     for ( var ang = 0; ang<maxAng; ang++) {
 
 	
-	createOtf( tmpOTF, 0,0, -1. );
-	accOTF.add( tmpOTF );
-	createOtf( tmpOTF, 0,0, attFactor );
-	accATT.add( tmpOTF );
+	tmpOtf.createOtf(workerOtfVals, 0,0,-1); 
+	accOTF.add( tmpOtf );
+	tmpOtf.createOtf(workerOtfVals, 0,0,workerOtfVals.attFactor); 
+	accATT.add( tmpOtf );
 	
 	var tmpZ   = new Vec2dCplx( imageSize *2 );
 	tmpZ.paste( bandImg[ang*bands],0,0 );
@@ -329,7 +335,7 @@ function computeReconstruction() {
 	fullResultWidefield.paste( tmpZ, 0, 0 );
 	
 	tmpZ.mult(.5,0.);
-	tmpZ.times( tmpOTF );
+	tmpZ.times( tmpOtf );
 	
 
 	fullResult.paste( tmpZ, 0, 0 );
@@ -380,19 +386,19 @@ function computeReconstruction() {
 	    tmpN.multPhase(-b*maxCorr[ang][3] );
 
 	    // multiply w. OTF
-	    createOtf( tmpOTF, kx,ky, -1. );
-	    accOTF.add( tmpOTF );
-	    createOtf( tmpOTF, kx,ky, attFactor );
-	    accATT.add( tmpOTF );
+	    tmpOtf.createOtf(workerOtfVals, kx,ky,-1); 
+	    accOTF.add( tmpOtf );
+	    tmpOtf.createOtf(workerOtfVals, kx,ky,workerOtfVals.attFactor); 
+	    accATT.add( tmpOtf );
 	    
-	    tmpP.times( tmpOTF );
+	    tmpP.times( tmpOtf );
 	    
-	    createOtf( tmpOTF, -kx,-ky, -1. );
-	    accOTF.add( tmpOTF );
-	    createOtf( tmpOTF, -kx,-ky, attFactor );
-	    accATT.add( tmpOTF );
+	    tmpOtf.createOtf(workerOtfVals, -kx,-ky,-1); 
+	    accOTF.add( tmpOtf );
+	    tmpOtf.createOtf(workerOtfVals, -kx,-ky,workerOtfVals.attFactor); 
+	    accATT.add( tmpOtf );
 
-    	    tmpN.times( tmpOTF );
+    	    tmpN.times( tmpOtf );
 
 	    // paste into full result
 	    fullResult.paste( tmpP ,0,0);
@@ -403,7 +409,7 @@ function computeReconstruction() {
 
     }
     
-    showStatus("Reconstruction: computing filters", 0.95);
+    showStatus("Reconstruction: computing filters", 0.9);
 
     // Wiener filtering
     for ( var i=0; i<fullResult.length; i++) {
@@ -416,15 +422,15 @@ function computeReconstruction() {
     }
 
     // APO
-    createOtf( tmpOTF, 0,0,-1,1.9);
-    fullResult.times( tmpOTF );
+    tmpOtf.createOtf(workerOtfVals, 0, 0,-1,1.9); 
+    fullResult.times( tmpOtf );
 
     fullResultFFT = fullResult.duplicate();
     fullResult.fft2d(true);
 
 
     // widefield
-    maskOtf( fullResultWidefield );
+    fullResultWidefield.maskOtf( workerOtfVals );
     fullResultWidefieldFFT = fullResultWidefield.duplicate();
     fullResultWidefield.fft2d(true);
 
@@ -438,349 +444,3 @@ function computeReconstruction() {
 
 }
 
-
-function valOtf( dist ) {
-    if ((dist<0)||(dist>=1))
-	return 0.0;
-    if (dist == 1 )
-	return 1.0;
-    return (2/Math.PI)*(Math.acos(dist) - dist*Math.sqrt(1-dist*dist));
-}
-
-
-// create a simple, 2D OTF
-function createOtf( vec, kx=0, ky=0, att=-1, coShift=1 ) {
-
-    const cyclPxl   =  1./(imageSize*pxlSize);
-    const cutoff    =  ((2*objNA)/(emLambda/1000.))*coShift;
-    const cutoffPxl =  cutoff/cyclPxl;
-
-    for (var y=0; y<vec.size; y++) {
-	for (var x=0; x<vec.size; x++) {
-
-	    var xi = x + kx;
-	    var yi = y + ky;
-
-	    var xh = ((xi<vec.size/2)?( xi):(xi-vec.size)) ;
-	    var yh = ((yi<vec.size/2)?( yi):(yi-vec.size)) ;
-
-	    var dist = Math.sqrt( xh*xh+yh*yh );
-	    var val  = valOtf( dist/cutoffPxl );
-
-	    if ( att>0 && (dist/cutoffPxl) < 1 ) {
-		val *= 1.0-0.99*Math.exp( -(dist/cutoffPxl/att));
-	    }
-
-	    vec.data[(x+y*vec.size)*2+0] = val;
-	    vec.data[(x+y*vec.size)*2+1] = 0.0;
-
-	}
-    }
-
-}
-
-
-// cut out regions beyond OTF support
-function maskOtf( vec , coShift = 1.) {
-
-    const cyclPxl   =  1./(imageSize*pxlSize);
-    const cutoff    =  ((2*objNA)/(emLambda/1000.))*coShift;
-    const cutoffPxl =  cutoff/cyclPxl;
-
-    for (var y=0; y<vec.size; y++) {
-	for (var x=0; x<vec.size; x++) {
-
-	    var xh = ((x<vec.size/2)?( x):(x-vec.size)) ;
-	    var yh = ((y<vec.size/2)?( y):(y-vec.size)) ;
-	    var dist = Math.sqrt( xh*xh+yh*yh );
-
-	    if ( (dist/cutoffPxl) >1.1) {
-		vec.data[(x+y*vec.size)*2+0] = 0.0;
-		vec.data[(x+y*vec.size)*2+1] = 0.0;
-	    } else if ( (dist/cutoffPxl) >1 ) {
-		var d2 = ((dist/cutoffPxl) -1.)*10.;
-		var v  = .5*(1+Math.cos(Math.PI*d2));
-		vec.data[(x+y*vec.size)*2+0] *= v;
-		vec.data[(x+y*vec.size)*2+1] *= v;
-	    }
-	}
-    }
-
-}
-
-
-
-
-
-function updateFFTimage( pos ) {
-
-    if ( inputFFTimg == null || inputFFTimg.length == 0 ) {
-	return;
-    }
-
-    var imgCnv = document.getElementById("fftCanvas");
-    var ctx = imgCnv.getContext("2d");
-    var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    var pwSpec  = inputFFTimg[pos].getImg();
-
-
-    var data = fftData.data;
-    for ( var i = 0 ; i<data.length/4; i++) {
-	data[i*4+0] = pwSpec[i]*255 ;
-	data[i*4+1] = pwSpec[i]*255 ;
-	data[i*4+2] = pwSpec[i]*255 ;
-	data[i*4+3] = 0xFF;
-    } 
-    ctx.putImageData( fftData,0,0);
-
-}
-
-
-function toggleOtfImage( val  ) {
-    showOtfInInput = val;
-
-    if (showOtfInInput) {
-       updateOtfImage(document.getElementById("corrSlider").value);
-    } else {
-	updateFFTimage(document.getElementById("sSlider").value);
-	updateResultImage(
-	    document.getElementById("resMinSlider").value, 
-	    document.getElementById("resMaxSlider").value);
-    }
-}
-
-
-function updateOtfImage( pos ) {
-
-    const bands = (maxPha+1)/2;
-    
-    var imgCnv = document.getElementById("fftCanvas");
-    var ctx = imgCnv.getContext("2d");
-    var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-
-    var otfVec = new Vec2dCplx( imageSize );
-    var data = fftData.data;
-
-    createOtf( otfVec , 0, 0, attFactor );
-    var otfImg = otfVec.getImg(true,false);
-    
-    for ( var i = 0 ; i<data.length/4; i++) {
-	data[i*4+0] = otfImg[i]*255 ;
-	data[i*4+1] = otfImg[i]*255 ;
-	data[i*4+2] = otfImg[i]*255 ;
-	data[i*4+3] = 0xFF;
-    } 
-
-    ctx.putImageData( fftData,0,0);
-   
-
-    // output the overlay 
-    if (maxCorr != null && maxCorr.length != 0 ) {
-    
-	var imgCnv = document.getElementById("resultCanvas");
-	var ctx = imgCnv.getContext("2d");
-	var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-
-	var otfVec = new Vec2dCplx( imageSize*2 );
-	var data = fftData.data;
-    
-	var xo =  maxCorr[Math.floor(pos/2)][0] * (1+pos%2);
-	var yo =  maxCorr[Math.floor(pos/2)][1] * (1+pos%2);
-
-    	createOtf( otfVec , xo, yo, attFactor );
-	var otfImg1 = otfVec.getImg(true,false);
-	createOtf( otfVec , 0, 0, attFactor );
-	var otfImg0 = otfVec.getImg(true,false);
-	
-	for ( var i = 0 ; i<data.length/4; i++) {
-	    
-	    var mark = ( otfImg0[i]>0.05 && otfImg1[i] > 0.05 )?(1):(0);
-    
-	    data[i*4+0] = otfImg0[i]*255 ;
-	    data[i*4+1] = otfImg1[i]*255 ;
-	    data[i*4+2] = mark*100;
-	    data[i*4+3] = 0xFF;
-	} 
-	
-	ctx.putImageData( fftData,0,0);
-    
-    }
-
-    // compute the full output
-    /*
-    if (maxCorr != null && maxCorr.length != 0 ) {
-	var imgCnv = document.getElementById("resultCanvasFFT");
-	var ctx = imgCnv.getContext("2d");
-	var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-
-	var otf0 = new Vec2dCplx( imageSize*2 );
-	var otf1 = new Vec2dCplx( imageSize*2 );
-	var otf2 = new Vec2dCplx( imageSize*2 );
-	var tmp  = new Vec2dCplx( imageSize*2 );
-	var data = fftData.data;
-   
-	createOtf( otf0 , 0, 0, attFactor );
-
-	for (var ang =0; ang<maxAng; ang++) {
- 
-	    var xo =  maxCorr[ang][0] ;
-	    var yo =  maxCorr[ang][1] ;
-
-	    createOtf( tmp , xo, yo, attFactor );
-	    otf1.add( tmp );	
-	    createOtf( tmp , -xo, -yo, attFactor );
-	    otf1.add( tmp );	
-	    createOtf( tmp , 2*xo, 2*yo, attFactor );
-	    otf2.add( tmp );	
-	    createOtf( tmp , -2*xo, -2*yo, attFactor );
-	    otf2.add( tmp );	
-	}	
-
-	var dat0 = otf0.getImg(true,false);
-	var dat1 = otf1.getImg(true,false);
-	var dat2 = otf2.getImg(true,false);
-
-	for ( var i = 0 ; i<data.length/4; i++) {
-	    
-	    data[i*4+0] = dat0[i]*100 ;
-	    data[i*4+1] = dat1[i]*100 ;
-	    data[i*4+2] = dat2[i]*100 ;
-	    data[i*4+3] = 0xFF;
-	} 
-	
-	ctx.putImageData( fftData,0,0);
-    } 
-    */
-
-}
-
-
-function updateCorrelationImage( pos ) {
-
-    if ( corrImg == null || corrImg.length == 0 ) {
-	return;
-    }
-
-    if ( showOtfInInput ) {
-	updateOtfImage(pos);
-    }	 
-
-    var imgCnv = document.getElementById("corrCanvas");
-    var ctx = imgCnv.getContext("2d");
-    var fftData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    var pwSpec  = corrImg[pos].getImg(true);
-
-
-    var data = fftData.data;
-    for ( var i = 0 ; i<data.length/4; i++) {
-	data[i*4+0] = pwSpec[i]*255 ;
-	data[i*4+1] = pwSpec[i]*255 ;
-	data[i*4+2] = pwSpec[i]*255 ;
-	data[i*4+3] = 0xFF;
-    } 
-
-    const b = 1 + (pos%2);
-    const ang  = Math.floor(pos/2);
-
-    if ( b ==2 ) {
-	
-	for ( var iter=0; iter<2; iter++) {
-	    var bpos = Math.floor(pos/2)*2 +iter;
-	    //logger( "pos -> "+pos+" bpos "+bpos);
-	    for ( var x=0; x<8; x++)
-	    for ( var y=0; y<8; y++) {
-
-		var val = corrSubPxl[ bpos ][x+y*8][2];
-		//logger( x+" "+y+" "+val);
-		for ( var xz=0; xz<4; xz++)
-		for ( var yz=0; yz<4; yz++) {
-		    var i = (x*4+xz) + (y*4+yz)*imageSize + imageSize-(40*(iter+1));
-		    data[i*4+1] = val*255;
-		    data[i*4+2] = val*255;
-		    data[i*4+0] = 0;
-		}
-	    }
-	}
-
-    }
-
-    ctx.putImageData( fftData,0,0);
-
-    //logger("displ: ang "+ang+"  band "+b);
-
-    ctx.beginPath();
-    var xo =  maxCorr[ang][0]*b+imageSize/2;
-    var yo =  maxCorr[ang][1]*b+imageSize/2;
-    ctx.stokeStyle = '#ff4400';
-    ctx.arc( xo, yo, 4, 0, Math.PI*2);
-    if ( pos%2 ==1 ) {
-	ctx.moveTo(xo,yo-4),
-	ctx.lineTo( 512-44, 32);
-    }
-    ctx.stroke();
-
-}
-
-function updateResultImage(slMin=-1, slMax=100) {
-
-    if ( fullResult == null ) {
-	return;
-    }
-
-    //logger("Updating image: "+slMax);
-    var whatToDisplay = ( showWidefield )?(fullResultWidefield):(fullResult);
-    var whatToDisplayFFT = ( showWidefield )?(fullResultWidefieldFFT):(fullResultFFT);
-
-    var minMax = whatToDisplay.getRealMinMax();
-    //var scal = 255./(minMax[1]-minMax[0]);
-    var scal,min,max;
-    if (slMin==-1){
-	scal = 255./(minMax[1]*(slMax/100.));
-	min = 0;
-    } else {
-	min = minMax[0]	+ (minMax[1]-minMax[0])*.5*slMin/100.;
-	max = minMax[0] + (minMax[1]-minMax[0])*slMax/100.;
-	if (min>max-5) max=min+5;
-	scal = 255./(max-min);
-    }
-
-    var imgCnv = document.getElementById("resultCanvas");
-    var ctx = imgCnv.getContext("2d");
-    var imgData = ctx.getImageData(0,0,imgCnv.width, imgCnv.height);
-    var resData  = whatToDisplay.data;
-    
-    var fftCnv = document.getElementById("resultCanvasFFT");
-    var ctf = fftCnv.getContext("2d");
-    var fftData = ctf.getImageData(0,0,imgCnv.width, imgCnv.height);
-    var resFFT   = whatToDisplayFFT.getImg(true,true);
-
-
-
-    var data   = imgData.data;
-    var dataFFT = fftData.data;
-    for ( var y = 0 ; y<fullResult.size; y++) {
-        for ( var x = 0 ; x<fullResult.size; x++) {
-	    var io  = x + y * imgCnv.width;
-	    var ii  = x + y * fullResult.size;
-	    var val = (resData[2*ii]-min)*scal ;
-	    if (val<0) val = 0;
-	    data[io*4+0] = val;
-	    data[io*4+1] = val;
-	    data[io*4+2] = val;
-	    data[io*4+3] = 0xFF;
-	    dataFFT[io*4+0] = resFFT[ii]*255;
-	    dataFFT[io*4+1] = resFFT[ii]*255;
-	    dataFFT[io*4+2] = resFFT[ii]*255;
-	    dataFFT[io*4+3] = 0xFF;
-	}
-    } 
-
-    ctx.putImageData( imgData,0,0);
-    ctf.putImageData( fftData,0,0);
-    ctf.beginPath();
-    ctf.stokeStyle = '#ff4400';
-    ctf.arc( 512, 512, 10, 0, Math.PI*2);
-    ctf.stroke();
-
-
-}
