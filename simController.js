@@ -87,7 +87,7 @@ simWorker.onmessage = function(e) {
 
 }
 
-window.onload = function() { showStatus("fairSIM-js: ready",1); };
+window.onload = function() { simWorker.postMessage(["confirmWorkerInit"]); };
 
 // some code to easily write to the js console
 function logger(text) {

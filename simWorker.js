@@ -65,6 +65,12 @@ onmessage = function(e) {
 
     var what = e.data[0];
 
+    // just confirm (by posting a message back) the worker works
+    if (what=='confirmWorkerInit') {
+	showStatus("fairSIM-js: ready",1)
+    }
+
+
     // import images: e.data[1] should contain all the images (typ. as Uint...)
     if (what=='import') {
 
