@@ -7,6 +7,12 @@ h1 {
     color: blue;
 }
 
+
+#maindiv{
+    width: 1040px;
+    margin: 0 auto;
+}
+
 #fileLoader {
     width: 1034px;
     border: 2px solid powderblue;
@@ -17,16 +23,17 @@ h1 {
     position: fixed;
     height: 40px;
     width: 514px;
+    left:50%;
     top: 20px;
-    left: 528px;
     border: 2px solid powderblue;
     background: #ffffff44;
 }
 
 #fairsimprogress {
     position: fixed;
+    left:50%;
+    transform: translate(480px);
     top: 20px;
-    left: 990px;
     height: 35px;
     width: 40px;
 }
