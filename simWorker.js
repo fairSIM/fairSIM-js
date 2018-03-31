@@ -124,7 +124,7 @@ onmessage = function(e) {
 	var msg = "New OTF: NA "+workerOtfVals.objNA+" wl "+workerOtfVals.emLambda+" (att "+
 		    ((workerOtfVals.attFactor>0)?(workerOtfVals.attFactor):("off"))+")";
 	showStatus(msg);
-	logger(e.data[1].objNA);
+	//logger(e.data[1].objNA);
 
     }
 

@@ -72,7 +72,7 @@ raw images:<br/>
 <hr />
 <label class="switch" for="inp_attOnOff">Attenuate OTF?</label>
 <input id="inp_attOnOff" type="checkbox" checked="true"
-    oninput="updateOtfValues()"/>
+    onchange="updateOtfValues()"/>
 <label for="inp_attFactor">Attenuation </label>
 <input id="inp_attval" type="number" value="0.4" min="0.05" max="0.9" step="0.05" 
     oninput="updateOtfValues()"/>
@@ -82,8 +82,7 @@ raw images:<br/>
 <button id="hideOtfButton" onclick="toggleOtfImage(false)">hidde OTF display</button>
 <hr />
 <label class="switch" for="inp_showOtfOutline">Show OTF outlines in result?</label>
-<input id="inp_showOtfOutline" type="checkbox" checked="false" 
-    oninput="showOtfOutline=this.checked; updateResultImageDisplay();"/>
+<input id="inp_showOtfOutline" type="checkbox" checked="false" onchange="updateResultImageDisplay();" />
 
 </div>
 </div>

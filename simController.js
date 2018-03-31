@@ -46,7 +46,6 @@ var fullResultWidefieldFFT  = null;  // holds the fft'd widefield
 
 var showOtfInInput = false; // toggled if the OTFs are shown
 var showWidefield  = false; // if widefield is shown or reconstruction
-var shwOtfOutline  = false; // if the OTFs are shown as outlines in the result spectrum
 
 
 // The worker running the actual reconstruction
@@ -387,7 +386,11 @@ function updateResultImageDisplay() {
 
     var slMin = document.getElementById("resMinSlider").value;
     var slMax = document.getElementById("resMaxSlider").value;
-    
+   
+    var showOtfOverlay = document.getElementById("inp_showOtfOutline").checked;
+ 
+    //logger("Otf Overlay: "+showOtfOverlay);
+
     if ( fullResult == null ) {
 	return;
     }
@@ -453,7 +456,7 @@ function updateResultImageDisplay() {
     ctf.arc( 512, 512, 10, 0, Math.PI*2);
     ctf.stroke();
 
-    if (showOtfOutline == true) {    
+    if (showOtfOverlay == true) {    
 	// widefield
 	ctf.beginPath();
 	ctf.strokeStyle = '#aa4400';
