@@ -329,6 +329,7 @@ function computeReconstruction() {
     // for all angles
     for ( var ang = 0; ang<maxAng; ang++) {
 
+	showStatus("Reconstruction: ang "+ang+" band 0", (ang*bands)*.9/(maxAng*bands));
 	
 	tmpOtf.createOtf(workerOtfVals, 0,0,-1); 
 	accOTF.add( tmpOtf );
