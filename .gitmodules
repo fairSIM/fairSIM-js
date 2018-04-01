@@ -3,4 +3,4 @@
 	url = https://github.com/jensnockert/fft.js.git
 [submodule "decode-tiff"]
 	path = decode-tiff
-	url = https://github.com/Quramy/decode-tiff.git
+	url = https://github.com/mueller-physics/decode-tiff.git
