@@ -203,7 +203,8 @@ function updateOtfValues() {
 
     contrOtfVals.objNA    = document.getElementById('inp_otfna').value;
     contrOtfVals.emLambda = document.getElementById('inp_emwl').value;
-    
+    contrOtfVals.apoVal   = document.getElementById('inp_apoval').value;
+
     if ( document.getElementById('inp_attOnOff').checked ) {
 	contrOtfVals.attFactor= document.getElementById('inp_attval').value;
     } else {

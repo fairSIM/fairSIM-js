@@ -122,7 +122,8 @@ onmessage = function(e) {
 	workerOtfVals = e.data[1];
 
 	var msg = "New OTF: NA "+workerOtfVals.objNA+" wl "+workerOtfVals.emLambda+" (att "+
-		    ((workerOtfVals.attFactor>0)?(workerOtfVals.attFactor):("off"))+")";
+		    ((workerOtfVals.attFactor>0)?(workerOtfVals.attFactor):("off"))+") APO "+
+		    workerOtfVals.apoVal;
 	showStatus(msg);
 	//logger(e.data[1].objNA);
 
@@ -416,7 +417,7 @@ function computeReconstruction() {
 
     }
     
-    showStatus("Reconstruction: computing filters", 0.9);
+    showStatus("Reconstruction: computing filters ", 0.9);
 
     // Wiener filtering
     for ( var i=0; i<fullResult.length; i++) {
@@ -429,7 +430,8 @@ function computeReconstruction() {
     }
 
     // APO
-    tmpOtf.createOtf(workerOtfVals, 0, 0,-1,1.9); 
+    tmpOtf.createOtf(workerOtfVals, 0, 0,-1, workerOtfVals.apoVal ); 
+    //tmpOtf.createOtf(workerOtfVals, 0, 0,-1, 1.9 ); 
     fullResult.times( tmpOtf );
 
     fullResultFFT = fullResult.duplicate();

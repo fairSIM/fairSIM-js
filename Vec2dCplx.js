@@ -30,6 +30,7 @@ function OtfVals() {
     this.emLambda = 525;
     this.pxlSize = 1./(512*0.08); 
     this.attFactor = 0.4;
+    this.apoVal = 1.9;  
 }
 
 class Vec2dCplx {

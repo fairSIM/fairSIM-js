@@ -73,8 +73,13 @@ raw images:<br/>
 <label class="switch" for="inp_attOnOff">Attenuate OTF?</label>
 <input id="inp_attOnOff" type="checkbox" checked="true"
     onchange="updateOtfValues()"/>
-<label for="inp_attFactor">Attenuation </label>
+<label for="inp_attval">Attenuation </label>
 <input id="inp_attval" type="number" value="0.4" min="0.05" max="0.9" step="0.05" 
+    oninput="updateOtfValues()"/>
+<br />
+<hr />
+<label for="inp_apoval">Apodization cutoff </label>
+<input id="inp_apoval" type="number" value="1.9" min=".9" max="2.2" step=".1" 
     oninput="updateOtfValues()"/>
 <br />
 <hr />
